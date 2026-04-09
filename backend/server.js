@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+require('./load-env');
 const routes = require('./routes');
 
 const app = express();
