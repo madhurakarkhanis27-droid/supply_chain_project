@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Grid2x2, Package, Search } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -14,10 +14,66 @@ function ProductsList() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [issueFilter, setIssueFilter] = useState('all');
   const [sortBy, setSortBy] = useState('return_rate');
   const [sortOrder, setSortOrder] = useState('desc');
 
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const categoryFromUrl = searchParams.get('category');
+    const issueFromUrl = searchParams.get('issue');
+    const searchFromUrl = searchParams.get('search');
+    const sortByFromUrl = searchParams.get('sortBy');
+    const sortOrderFromUrl = searchParams.get('sortOrder');
+
+    if (categoryFromUrl) {
+      setCategoryFilter(categoryFromUrl);
+    } else {
+      setCategoryFilter('all');
+    }
+    if (issueFromUrl) {
+      setIssueFilter(issueFromUrl);
+    } else {
+      setIssueFilter('all');
+    }
+    if (searchFromUrl) {
+      setSearchTerm(searchFromUrl);
+    }
+    if (sortByFromUrl) {
+      setSortBy(sortByFromUrl);
+    }
+    if (sortOrderFromUrl === 'asc' || sortOrderFromUrl === 'desc') {
+      setSortOrder(sortOrderFromUrl);
+    }
+  }, [searchParams]);
+
+  function updateSearchParams(nextState) {
+    const params = new URLSearchParams(searchParams);
+
+    if (nextState.categoryFilter && nextState.categoryFilter !== 'all') {
+      params.set('category', nextState.categoryFilter);
+    } else {
+      params.delete('category');
+    }
+
+    if (nextState.issueFilter && nextState.issueFilter !== 'all') {
+      params.set('issue', nextState.issueFilter);
+    } else {
+      params.delete('issue');
+    }
+
+    if (nextState.searchTerm) {
+      params.set('search', nextState.searchTerm);
+    } else {
+      params.delete('search');
+    }
+
+    params.set('sortBy', nextState.sortBy);
+    params.set('sortOrder', nextState.sortOrder);
+    setSearchParams(params);
+  }
 
   useEffect(() => {
     async function fetchProducts() {
@@ -50,6 +106,15 @@ function ProductsList() {
     }));
   }, [categories, products]);
 
+  const issues = useMemo(() => {
+    const uniqueIssues = [...new Set(
+      products
+        .map((product) => product.mainIssue)
+        .filter((issue) => issue && issue !== 'Under Analysis')
+    )];
+    return ['all', ...uniqueIssues.sort()];
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
@@ -63,6 +128,10 @@ function ProductsList() {
 
     if (categoryFilter !== 'all') {
       result = result.filter((product) => product.category === categoryFilter);
+    }
+
+    if (issueFilter !== 'all') {
+      result = result.filter((product) => product.mainIssue === issueFilter);
     }
 
     result.sort((a, b) => {
@@ -79,7 +148,7 @@ function ProductsList() {
     });
 
     return result;
-  }, [products, searchTerm, categoryFilter, sortBy, sortOrder]);
+  }, [products, searchTerm, categoryFilter, issueFilter, sortBy, sortOrder]);
 
   function getRateColor(rate) {
     if (rate <= 10) return '#10b981';
@@ -96,12 +165,24 @@ function ProductsList() {
   }
 
   function handleSort(field) {
+    let nextSortBy = field;
+    let nextSortOrder = 'desc';
+
     if (sortBy === field) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      nextSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      setSortOrder(nextSortOrder);
     } else {
-      setSortBy(field);
-      setSortOrder('desc');
+      setSortBy(nextSortBy);
+      setSortOrder(nextSortOrder);
     }
+
+    updateSearchParams({
+      categoryFilter,
+      issueFilter,
+      searchTerm,
+      sortBy: nextSortBy,
+      sortOrder: nextSortOrder,
+    });
   }
 
   if (loading) return <LoadingSpinner message="Loading products..." />;
@@ -140,7 +221,16 @@ function ProductsList() {
             <button
               key={category.key}
               type="button"
-              onClick={() => setCategoryFilter(category.key)}
+              onClick={() => {
+                setCategoryFilter(category.key);
+                updateSearchParams({
+                  categoryFilter: category.key,
+                  issueFilter,
+                  searchTerm,
+                  sortBy,
+                  sortOrder,
+                });
+              }}
               style={{
                 padding: '10px 14px',
                 borderRadius: '9999px',
@@ -177,10 +267,43 @@ function ProductsList() {
             className="search-input"
             placeholder="Search by name or brand..."
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => {
+              const nextSearchTerm = event.target.value;
+              setSearchTerm(nextSearchTerm);
+              updateSearchParams({
+                categoryFilter,
+                issueFilter,
+                searchTerm: nextSearchTerm,
+                sortBy,
+                sortOrder,
+              });
+            }}
             id="product-search"
           />
         </div>
+
+        <select
+          className="filter-select"
+          value={issueFilter}
+          onChange={(event) => {
+            const nextIssueFilter = event.target.value;
+            setIssueFilter(nextIssueFilter);
+            updateSearchParams({
+              categoryFilter,
+              issueFilter: nextIssueFilter,
+              searchTerm,
+              sortBy,
+              sortOrder,
+            });
+          }}
+          id="issue-select"
+        >
+          {issues.map((issue) => (
+            <option key={issue} value={issue}>
+              {issue === 'all' ? 'Issue: All' : `Issue: ${issue}`}
+            </option>
+          ))}
+        </select>
 
         <select
           className="filter-select"
@@ -209,6 +332,11 @@ function ProductsList() {
       >
         <Package size={14} />
         Showing {filteredProducts.length} of {products.length} products
+        {issueFilter !== 'all' && (
+          <span style={{ color: 'var(--text-secondary)' }}>
+            Issue: {issueFilter}
+          </span>
+        )}
         {categoryFilter !== 'all' && (
           <span style={{ color: 'var(--text-secondary)' }}>
             • Category: {categoryFilter}
@@ -242,6 +370,7 @@ function ProductsList() {
                 <th onClick={() => handleSort('total_sold')} style={{ cursor: 'pointer' }}>
                   Sold {sortBy === 'total_sold' && (sortOrder === 'asc' ? '↑' : '↓')}
                 </th>
+                <th>Main Issue</th>
               </tr>
             </thead>
             <tbody>
@@ -294,6 +423,11 @@ function ProductsList() {
                       <span style={{ color: '#fbbf24' }}>★</span> {product.avg_rating}
                     </td>
                     <td>{Number(product.total_sold).toLocaleString('en-IN')}</td>
+                    <td>
+                      <span className="badge badge-info">
+                        {product.mainIssueIcon} {product.mainIssue}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}

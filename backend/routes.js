@@ -524,7 +524,179 @@ router.get('/dashboard/issue-distribution', async (req, res) => {
 
 
 // ============================================================
-// ROUTE 12: ANALYZE REVIEWS (POST)
+// ROUTE 12: BUSINESS ACTION SUMMARY
+// URL: GET /api/dashboard/action-summary
+// PURPOSE: Provide prioritized category-level actions for the dashboard
+// ============================================================
+router.get('/dashboard/action-summary', async (req, res) => {
+  try {
+    const [categoryData] = await db.query(`
+      SELECT p.category,
+             COUNT(r.id) as returnCount,
+             COALESCE(SUM(r.refund_amount), 0) as refundTotal,
+             ROUND(AVG(p.return_rate), 2) as avgReturnRate
+      FROM returns r
+      JOIN products p ON r.product_id = p.id
+      GROUP BY p.category
+      ORDER BY returnCount DESC, refundTotal DESC
+      LIMIT 5
+    `);
+
+    const priorities = [];
+
+    for (const category of categoryData) {
+      const [returns] = await db.query(`
+        SELECT r.detailed_notes
+        FROM returns r
+        JOIN products p ON r.product_id = p.id
+        WHERE p.category = ?
+      `, [category.category]);
+
+      const issueCounts = {};
+      for (const ret of returns) {
+        const issues = extractIssues(ret.detailed_notes || '');
+        for (const issue of issues) {
+          if (!issueCounts[issue.label]) {
+            issueCounts[issue.label] = 0;
+          }
+          issueCounts[issue.label] += 1;
+        }
+      }
+
+      const sortedIssues = Object.entries(issueCounts).sort((a, b) => b[1] - a[1]);
+      const [topIssue = 'Under Analysis', topIssueCount = 0] = sortedIssues[0] || [];
+
+      let priority = 'monitor';
+      let impact = 'Low';
+      let owner = 'Category Team';
+
+      if (Number(category.avgReturnRate) >= 25 || Number(category.returnCount) >= 15) {
+        priority = 'urgent';
+        impact = 'High';
+        owner = 'Ops Lead';
+      } else if (Number(category.avgReturnRate) >= 15 || Number(category.returnCount) >= 8) {
+        priority = 'soon';
+        impact = 'Medium';
+        owner = 'QA Team';
+      }
+
+      priorities.push({
+        category: category.category,
+        returnCount: Number(category.returnCount),
+        refundTotal: Number(category.refundTotal),
+        avgReturnRate: Number(category.avgReturnRate),
+        topIssue,
+        issueShare: returns.length > 0 ? Math.round((topIssueCount / returns.length) * 100) : 0,
+        priority,
+        impact,
+        owner,
+        actions: [
+          `Audit ${category.category.toLowerCase()} listings for ${topIssue.toLowerCase()} complaints.`,
+          `Review latest return notes and samples from ${category.category.toLowerCase()}.`,
+          `Coordinate with ${owner.toLowerCase()} on the next corrective action cycle.`
+        ]
+      });
+    }
+
+    res.json({
+      summary: priorities.length > 0
+        ? `Focus first on the categories creating the highest combination of returns and refund pressure.`
+        : 'No category priorities are available yet.',
+      priorities
+    });
+  } catch (error) {
+    console.error('Action summary error:', error);
+    res.status(500).json({ error: 'Failed to load action summary' });
+  }
+});
+
+
+// ============================================================
+// ROUTE 13: ACTIVE ALERTS
+// URL: GET /api/dashboard/alerts
+// PURPOSE: Provide dashboard alert cards for the highest-risk categories
+// ============================================================
+router.get('/dashboard/alerts', async (req, res) => {
+  try {
+    const [categoryData] = await db.query(`
+      SELECT p.category,
+             COUNT(r.id) as returnCount,
+             COALESCE(SUM(r.refund_amount), 0) as refundTotal,
+             ROUND(AVG(p.return_rate), 2) as avgReturnRate
+      FROM returns r
+      JOIN products p ON r.product_id = p.id
+      GROUP BY p.category
+      HAVING COUNT(r.id) > 0
+      ORDER BY avgReturnRate DESC, refundTotal DESC
+      LIMIT 4
+    `);
+
+    const alerts = [];
+
+    for (const category of categoryData) {
+      const [returns] = await db.query(`
+        SELECT r.detailed_notes
+        FROM returns r
+        JOIN products p ON r.product_id = p.id
+        WHERE p.category = ?
+      `, [category.category]);
+
+      const issueCounts = {};
+      for (const ret of returns) {
+        const issues = extractIssues(ret.detailed_notes || '');
+        for (const issue of issues) {
+          if (!issueCounts[issue.label]) {
+            issueCounts[issue.label] = 0;
+          }
+          issueCounts[issue.label] += 1;
+        }
+      }
+
+      const sortedIssues = Object.entries(issueCounts).sort((a, b) => b[1] - a[1]);
+      const [topIssue = 'Under Analysis'] = sortedIssues[0] || [];
+
+      let severity = 'medium';
+      let priority = 'monitor';
+      let owner = 'Ops Lead';
+
+      if (Number(category.avgReturnRate) >= 25) {
+        severity = 'high';
+        priority = 'urgent';
+      } else if (Number(category.avgReturnRate) >= 15) {
+        severity = 'medium';
+        priority = 'soon';
+      } else {
+        severity = 'low';
+      }
+
+      alerts.push({
+        id: `${category.category}-${topIssue}`.toLowerCase().replace(/\s+/g, '-'),
+        category: category.category,
+        issue: topIssue,
+        severity,
+        priority,
+        owner,
+        returnCount: Number(category.returnCount),
+        refundTotal: Number(category.refundTotal),
+        message: `${category.category} is showing elevated returns driven mainly by ${topIssue.toLowerCase()}.`
+      });
+    }
+
+    res.json({
+      summary: alerts.length > 0
+        ? 'These categories need attention based on recent return intensity.'
+        : 'No active alerts right now.',
+      alerts
+    });
+  } catch (error) {
+    console.error('Alerts error:', error);
+    res.status(500).json({ error: 'Failed to load alerts' });
+  }
+});
+
+
+// ============================================================
+// ROUTE 14: ANALYZE REVIEWS (POST)
 // URL: POST /api/analyze/reviews
 // PURPOSE: AI analysis of an array of reviews or a single review text
 // ============================================================
@@ -558,7 +730,7 @@ router.post('/analyze/reviews', (req, res) => {
 
 
 // ============================================================
-// ROUTE 13: ANALYZE FAKE REVIEWS (POST)
+// ROUTE 15: ANALYZE FAKE REVIEWS (POST)
 // URL: POST /api/analyze/fake-reviews
 // PURPOSE: Detect if a submitted review is fake or suspicious
 // ============================================================

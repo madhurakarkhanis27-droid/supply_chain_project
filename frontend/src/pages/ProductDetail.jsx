@@ -57,11 +57,11 @@ function ProductDetail() {
         setError(null);
 
         // Product detail is required; recommendations are optional.
-        const detailRes = await axios.get(`http://localhost:5001/api/products/${id}?t=${Date.now()}`);
+        const detailRes = await axios.get(`/api/products/${id}?t=${Date.now()}`);
         setData(detailRes.data);
 
         try {
-          const recsRes = await axios.get(`http://localhost:5001/api/products/${id}/recommendations`);
+          const recsRes = await axios.get(`/api/products/${id}/recommendations`);
           setRecommendations(recsRes.data);
         } catch (recsError) {
           console.error('Failed to load recommendations:', recsError);
@@ -109,7 +109,7 @@ function ProductDetail() {
 
   // Destructure the data for easier access
   const { product, reviews, returns, tickets, aiAnalysis } = data;
-  const { riskScore, rootCause } = aiAnalysis;
+  const { riskScore, rootCause, sellerActionPlan } = aiAnalysis;
   const riskValue = riskScore?.score || 0;
 
 
@@ -294,6 +294,81 @@ function ProductDetail() {
             </div>
           </div>
 
+          {/* ---- Seller Action Plan ---- */}
+          <div className="glass-card animate-in" style={{ marginBottom: '24px' }}>
+            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle size={18} style={{ color: '#10b981' }} />
+              What The Business Should Do Next
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
+              {sellerActionPlan?.summary || 'AI will suggest seller actions once enough issue data is available.'}
+            </p>
+
+            {sellerActionPlan?.actions?.length > 0 ? (
+              <>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '12px',
+                  flexWrap: 'wrap',
+                  marginBottom: '16px',
+                  padding: '12px 14px',
+                  background: 'rgba(16, 185, 129, 0.05)',
+                  border: '1px solid rgba(16, 185, 129, 0.12)',
+                  borderRadius: '10px'
+                }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Recommended review window
+                  </span>
+                  <span className="recommendation-badge closest">
+                    {sellerActionPlan.nextReviewWindow}
+                  </span>
+                </div>
+
+                {sellerActionPlan.actions.map((action) => (
+                  <div key={action.id} className="seller-action-card">
+                    <div className="seller-action-header">
+                      <div>
+                        <h4>{action.title}</h4>
+                        <p>{action.evidence}</p>
+                      </div>
+                      <div className="seller-action-badges">
+                        <span className={`action-priority ${action.priority}`}>{action.priority}</span>
+                        <span className="action-impact">{action.impact}</span>
+                      </div>
+                    </div>
+
+                    <div className="seller-action-meta">
+                      <span>Owner: {action.owner}</span>
+                      <span>{action.whyNow}</span>
+                    </div>
+
+                    <div className="seller-action-list">
+                      {action.actions.map((item) => (
+                        <div key={`${action.id}-${item}`} className="seller-action-item">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div style={{
+                padding: '18px',
+                background: 'var(--bg-elevated)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.85rem',
+                lineHeight: '1.7',
+              }}>
+                No seller action plan is available yet because this product does not have enough repeated issue evidence.
+              </div>
+            )}
+          </div>
+
           {/* ---- Root Cause Analysis ---- */}
           <div className="glass-card animate-in" style={{ marginBottom: '24px' }}>
             <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -422,7 +497,7 @@ function ProductDetail() {
                 Better Alternatives
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
-                We first look for very similar products from the same subcategory, then use safer options from the same category only.
+                We only show genuinely similar products, prioritizing the same subcategory or the same product type.
               </p>
 
               {recommendations.recommendations.map((rec) => (
@@ -462,6 +537,18 @@ function ProductDetail() {
                   <ArrowRight size={16} style={{ color: 'var(--text-tertiary)' }} />
                 </div>
               ))}
+            </div>
+          )}
+
+          {recommendations?.recommendations && recommendations.recommendations.length === 0 && (
+            <div className="glass-card animate-in">
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Award size={18} style={{ color: '#10b981' }} />
+                Better Alternatives
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: 0 }}>
+                No truly similar alternatives were found yet. We now avoid showing unrelated products from other subtypes just to fill this list.
+              </p>
             </div>
           )}
         </>
@@ -661,6 +748,5 @@ function ProductDetail() {
 }
 
 export default ProductDetail;
-
 
 
