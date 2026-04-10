@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AlertTriangle, Shield, Star } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AnimatedCounter from '../components/AnimatedCounter';
 
 function FakeReviewDetector() {
   const [products, setProducts] = useState([]);
@@ -114,7 +115,7 @@ function FakeReviewDetector() {
                 <Shield size={16} />
                 Reliability score
               </div>
-              <div className="insight-stat-value">{analysis.reliabilityScore}%</div>
+              <div className="insight-stat-value"><AnimatedCounter value={analysis.reliabilityScore} suffix="%" /></div>
               <p>Higher is better. This is based on suspicious review share.</p>
             </div>
 
@@ -123,7 +124,7 @@ function FakeReviewDetector() {
                 <AlertTriangle size={16} />
                 Suspicious reviews
               </div>
-              <div className="insight-stat-value">{analysis.suspiciousCount}</div>
+              <div className="insight-stat-value"><AnimatedCounter value={analysis.suspiciousCount} /></div>
               <p>Reviews flagged by the rule-based detector.</p>
             </div>
 
@@ -132,7 +133,7 @@ function FakeReviewDetector() {
                 <Star size={16} />
                 Total reviews scanned
               </div>
-              <div className="insight-stat-value">{analysis.totalReviews}</div>
+              <div className="insight-stat-value"><AnimatedCounter value={analysis.totalReviews} /></div>
               <p>All reviews checked for suspicious patterns.</p>
             </div>
           </div>

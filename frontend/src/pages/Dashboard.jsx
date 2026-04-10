@@ -44,6 +44,7 @@ import {
 // Our components
 import StatCard from '../components/StatCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AnimatedCounter from '../components/AnimatedCounter';
 
 // ---- Chart color palette ----
 const CHART_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#f97316'];
@@ -191,45 +192,45 @@ function Dashboard() {
       <div className="stats-grid">
         <StatCard
           title="Total Products"
-          value={formatNumber(stats?.totalProducts)}
+          value={<AnimatedCounter value={stats?.totalProducts || 0} />}
           icon={Package}
           color="indigo"
           subtitle={`${formatNumber(stats?.totalSold)} units sold`}
         />
         <StatCard
           title="Total Returns"
-          value={formatNumber(stats?.totalReturned)}
+          value={<AnimatedCounter value={stats?.totalReturned || 0} />}
           icon={RotateCcw}
           color="red"
           subtitle="Across all categories"
         />
         <StatCard
           title="Avg Return Rate"
-          value={`${stats?.avgReturnRate || 0}%`}
+          value={<AnimatedCounter value={stats?.avgReturnRate || 0} suffix="%" decimals={2} />}
           icon={TrendingDown}
           color="amber"
           subtitle={stats?.avgReturnRate > 15 ? 'Above industry avg' : 'Within normal range'}
         />
         <StatCard
-          title="Refund Cost"
-          value={formatCurrency(stats?.totalRefundCost)}
+          title="Cost Impact"
+          value={<AnimatedCounter value={stats?.totalRefundCost || 0} currency={true} />}
           icon={DollarSign}
           color="purple"
           subtitle="Total refunds processed"
         />
         <StatCard
           title="Suspicious Reviews"
-          value={stats?.suspiciousReviews || 0}
+          value={<AnimatedCounter value={stats?.suspiciousReviews || 0} />}
           icon={ShieldAlert}
           color="red"
           subtitle={`of ${stats?.totalReviews || 0} total reviews`}
         />
         <StatCard
-          title="Avg Rating"
-          value={`${stats?.avgRating || 0} ★`}
-          icon={Star}
+          title="Avg Risk Score"
+          value={<AnimatedCounter value={stats?.avgRiskScore || 0} suffix="/100" />}
+          icon={AlertTriangle}
           color="amber"
-          subtitle={`${stats?.totalReviews || 0} reviews analyzed`}
+          subtitle="Global product return risk"
         />
       </div>
 
@@ -350,7 +351,29 @@ function Dashboard() {
         </span>
       </div>
 
-      <div className="data-table-wrapper">
+      <div className="chart-card animate-in" style={{ marginBottom: '24px' }}>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={topReturned} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis 
+              dataKey="name" 
+              stroke="var(--text-tertiary)" 
+              fontSize={10} 
+              tickFormatter={(value) => value.length > 15 ? `${value.substring(0, 15)}...` : value}
+              angle={-25}
+              textAnchor="end"
+            />
+            <YAxis stroke="var(--text-tertiary)" fontSize={11} yAxisId="left" orientation="left" />
+            <YAxis stroke="var(--text-tertiary)" fontSize={11} yAxisId="right" orientation="right" />
+            <Tooltip contentStyle={customTooltipStyle} />
+            <Legend wrapperStyle={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }} />
+            <Bar yAxisId="left" dataKey="total_returned" name="Returns Count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="right" dataKey="return_rate" name="Return Rate %" fill="#ef4444" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="data-table-wrapper animate-in" style={{ animationDelay: '0.1s' }}>
         <table className="data-table">
           <thead>
             <tr>

@@ -24,6 +24,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   ArrowLeft, Package, Star, RotateCcw, AlertTriangle,
   Shield, CheckCircle, TrendingDown, MessageSquare,
@@ -34,6 +35,7 @@ import {
 import RiskGauge from '../components/RiskGauge';
 import ReviewCard from '../components/ReviewCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AnimatedCounter from '../components/AnimatedCounter';
 
 
 function ProductDetail() {
@@ -55,11 +57,11 @@ function ProductDetail() {
         setError(null);
 
         // Product detail is required; recommendations are optional.
-        const detailRes = await axios.get(`/api/products/${id}`);
+        const detailRes = await axios.get(`http://localhost:5001/api/products/${id}?t=${Date.now()}`);
         setData(detailRes.data);
 
         try {
-          const recsRes = await axios.get(`/api/products/${id}/recommendations`);
+          const recsRes = await axios.get(`http://localhost:5001/api/products/${id}/recommendations`);
           setRecommendations(recsRes.data);
         } catch (recsError) {
           console.error('Failed to load recommendations:', recsError);
@@ -126,6 +128,17 @@ function ProductDetail() {
   const genuineReviews = reviews.filter(r => 
     !(r.fakeCheck?.isSuspicious || r.fakeAnalysis?.isSuspicious)
   );
+
+  // Calculate Sentiment Breakdown
+  const positiveCount = reviews.filter(r => r.sentiment?.label === 'Positive').length;
+  const negativeCount = reviews.filter(r => r.sentiment?.label === 'Negative').length;
+  const neutralCount = reviews.length - positiveCount - negativeCount;
+  
+  const sentimentData = [
+    { name: 'Positive', value: positiveCount, color: '#10b981' },
+    { name: 'Negative', value: negativeCount, color: '#ef4444' },
+    { name: 'Neutral', value: neutralCount, color: '#94a3b8' }
+  ].filter(d => d.value > 0);
 
 
   // ============================================================
@@ -226,7 +239,7 @@ function ProductDetail() {
                 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Units Sold</span>
                   <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>
-                    {Number(product.total_sold).toLocaleString('en-IN')}
+                    <AnimatedCounter value={Number(product.total_sold)} />
                   </span>
                 </div>
 
@@ -238,7 +251,7 @@ function ProductDetail() {
                 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Units Returned</span>
                   <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--color-danger)' }}>
-                    {Number(product.total_returned).toLocaleString('en-IN')}
+                    <AnimatedCounter value={Number(product.total_returned)} />
                   </span>
                 </div>
 
@@ -250,7 +263,7 @@ function ProductDetail() {
                 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Suspicious Reviews</span>
                   <span style={{ fontWeight: '700', fontSize: '1.1rem', color: suspiciousReviews.length > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                    {suspiciousReviews.length} / {reviews.length}
+                    <AnimatedCounter value={suspiciousReviews.length} /> / <AnimatedCounter value={reviews.length} />
                   </span>
                 </div>
 
@@ -262,7 +275,7 @@ function ProductDetail() {
                 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Support Tickets</span>
                   <span style={{ fontWeight: '700', fontSize: '1.1rem' }}>
-                    {tickets.length}
+                    <AnimatedCounter value={tickets.length} />
                   </span>
                 </div>
 
@@ -274,7 +287,7 @@ function ProductDetail() {
                 }}>
                   <span style={{ fontSize: '0.85rem', color: 'var(--accent-primary)' }}>AI Data Points Analyzed</span>
                   <span style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--accent-primary)' }}>
-                    {aiAnalysis.totalDataPoints}
+                    <AnimatedCounter value={aiAnalysis.totalDataPoints} />
                   </span>
                 </div>
               </div>
@@ -353,6 +366,53 @@ function ProductDetail() {
               </div>
             )}
           </div>
+
+          {/* ---- Sentiment Breakdown ---- */}
+          {sentimentData.length > 0 && (
+            <div className="glass-card animate-in" style={{ marginBottom: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MessageSquare size={18} style={{ color: '#10b981' }} />
+                Review Sentiment Breakdown
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
+                Feedback grouped by overall emotional sentiment, tracked across all {reviews.length} reviews.
+              </p>
+              
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={sentimentData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={5}
+                    dataKey="value"
+                    border="none"
+                    stroke="none"
+                  >
+                    {sentimentData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip 
+                    contentStyle={{
+                      background: 'rgba(17, 24, 39, 0.95)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: '#e2e8f0',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
+                    }} 
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={36} 
+                    wrapperStyle={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* ---- Recommendations ---- */}
           {recommendations?.recommendations && recommendations.recommendations.length > 0 && (

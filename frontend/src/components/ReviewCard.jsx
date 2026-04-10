@@ -23,7 +23,7 @@ function ReviewCard({ review, showAnalysis = true }) {
 
   // Extract AI analysis data (if available)
   const isSuspicious = review.fakeAnalysis?.isSuspicious || review.fakeCheck?.isSuspicious || false;
-  const suspicionScore = review.fakeAnalysis?.score || review.fakeCheck?.score || 0;
+  const suspicionScore = review.fakeAnalysis?.suspicionScore || review.fakeCheck?.suspicionScore || review.fakeAnalysis?.score || review.fakeCheck?.score || 0;
   const reasons = review.fakeAnalysis?.reasons || review.fakeCheck?.reasons || [];
   const sentiment = review.sentiment || {};
 

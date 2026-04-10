@@ -76,7 +76,8 @@ router.get('/dashboard/stats', async (req, res) => {
         SUM(total_sold) as totalSold,
         SUM(total_returned) as totalReturned,
         ROUND(AVG(return_rate), 2) as avgReturnRate,
-        ROUND(AVG(avg_rating), 2) as avgRating
+        ROUND(AVG(avg_rating), 2) as avgRating,
+        ROUND((AVG(return_rate) * 2) + ((5 - AVG(avg_rating)) * 5) + 15, 0) as avgRiskScore
       FROM products
     `);
 
@@ -110,6 +111,7 @@ router.get('/dashboard/stats', async (req, res) => {
       totalReturned: productStats[0].totalReturned,
       avgReturnRate: productStats[0].avgReturnRate,
       avgRating: productStats[0].avgRating,
+      avgRiskScore: productStats[0].avgRiskScore,
       totalRefundCost: refundStats[0].totalRefundCost,
       suspiciousReviews: suspiciousCount,
       totalReviews: reviews.length,
@@ -268,7 +270,7 @@ router.get('/products', async (req, res) => {
 // ============================================================
 // The ":id" is a URL parameter — for example:
 //   GET /api/products/7 → gets product with id=7
-router.get('/products/:id', async (req, res) => {
+router.get('/products/:id', async (req, res) => { console.log('API HIT FOR /products/', req.params.id);
   try {
     const productId = req.params.id; // Get the ID from the URL
 
@@ -432,28 +434,39 @@ router.get('/products/:id/recommendations', async (req, res) => {
     }
     const product = products[0];
 
-    // Find alternatives in the SAME category with LOWER return rates
-    // This helps customers find better options
+    // Extract product type keyword to ensure alternatives are of the same type (e.g. watch -> watch)
+    const getProductType = (name) => {
+      const types = [
+        'bean bag', 'watch', 'phone', 'laptop', 'headphones', 'earbuds', 'shoes', 
+        'shirt', 't-shirt', 'jacket', 'monitor', 'keyboard', 'mouse', 'tablet', 'camera', 
+        'tv', 'sneakers', 'boots', 'speaker', 'vacuum', 'saree', 'cookware', 'serum', 'jeans', 'chair'
+      ];
+      const lowerName = name.toLowerCase();
+      // 1. Check known types
+      for (const t of types) {
+        if (lowerName.includes(t)) return t;
+      }
+      // 2. Fallback: use the longest word or last significant word
+      const words = lowerName.split(/\s+/).filter(w => /^[a-z]+$/.test(w) && w.length > 3);
+      return words.length > 0 ? words[words.length - 1] : '';
+    };
+
+    const typeKeyword = getProductType(product.name);
+    const likePhrase = `%${typeKeyword}%`;
+
+    // Find alternatives in the SAME category with LOWER return rates, AND matching the type
     const [alternatives] = await db.query(`
       SELECT * FROM products 
       WHERE category = ? 
         AND id != ? 
+        AND name != ?
         AND return_rate < ?
+        AND LOWER(name) LIKE ?
       ORDER BY avg_rating DESC, return_rate ASC
       LIMIT 3
-    `, [product.category, productId, product.return_rate]);
+    `, [product.category, productId, product.name, product.return_rate, likePhrase]);
 
-    // If no better alternatives, get highest rated in same category
     let recommendations = alternatives;
-    if (recommendations.length === 0) {
-      const [fallback] = await db.query(`
-        SELECT * FROM products 
-        WHERE category = ? AND id != ?
-        ORDER BY avg_rating DESC
-        LIMIT 3
-      `, [product.category, productId]);
-      recommendations = fallback;
-    }
 
     res.json({
       currentProduct: product,
@@ -506,6 +519,70 @@ router.get('/dashboard/issue-distribution', async (req, res) => {
   } catch (error) {
     console.error('Issue distribution error:', error);
     res.status(500).json({ error: 'Failed to load issue distribution' });
+  }
+});
+
+
+// ============================================================
+// ROUTE 12: ANALYZE REVIEWS (POST)
+// URL: POST /api/analyze/reviews
+// PURPOSE: AI analysis of an array of reviews or a single review text
+// ============================================================
+router.post('/analyze/reviews', (req, res) => {
+  try {
+    const { reviews, reviewText } = req.body;
+    
+    if (reviewText) {
+      // Analyze a single text block
+      const sentiment = analyzeSentiment(reviewText);
+      const issues = extractIssues(reviewText);
+      return res.json({ sentiment, issues });
+    }
+    
+    if (reviews && Array.isArray(reviews)) {
+      // Analyze multiple reviews
+      const analyzedReviews = reviews.map(review => ({
+        ...review,
+        sentiment: analyzeSentiment(review.review_text || review.text || review),
+        issues: extractIssues(review.review_text || review.text || review)
+      }));
+      return res.json({ analyzedReviews });
+    }
+
+    return res.status(400).json({ error: 'Please provide reviewText or an array of reviews.' });
+  } catch (error) {
+    console.error('Analyze reviews error:', error);
+    res.status(500).json({ error: 'Failed to analyze reviews' });
+  }
+});
+
+
+// ============================================================
+// ROUTE 13: ANALYZE FAKE REVIEWS (POST)
+// URL: POST /api/analyze/fake-reviews
+// PURPOSE: Detect if a submitted review is fake or suspicious
+// ============================================================
+router.post('/analyze/fake-reviews', (req, res) => {
+  try {
+    const { review_text, rating, verified_purchase } = req.body;
+    
+    if (!review_text) {
+      return res.status(400).json({ error: 'review_text is required.' });
+    }
+
+    // construct a review object matching what detectFakeReview expects
+    const reviewObj = {
+      review_text,
+      rating: rating || 5, // Default to 5 to simulate common fake review pattern if omitted
+      verified_purchase: verified_purchase !== undefined ? verified_purchase : true
+    };
+
+    const fakeAnalysis = detectFakeReview(reviewObj);
+
+    res.json(fakeAnalysis);
+  } catch (error) {
+    console.error('Analyze fake reviews error:', error);
+    res.status(500).json({ error: 'Failed to analyze fake review' });
   }
 });
 

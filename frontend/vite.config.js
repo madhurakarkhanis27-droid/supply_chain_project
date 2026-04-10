@@ -21,7 +21,7 @@ export default defineConfig({
     // This avoids CORS issues during development
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',  // Our Express backend
+        target: 'http://localhost:5001',  // Our Express backend
         changeOrigin: true,               // Needed for virtual hosted sites
       }
     }

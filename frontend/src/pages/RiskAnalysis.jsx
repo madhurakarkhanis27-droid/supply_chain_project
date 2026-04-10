@@ -9,6 +9,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import AnimatedCounter from '../components/AnimatedCounter';
 
 function RiskAnalysis() {
   const [products, setProducts] = useState([]);
@@ -82,7 +83,7 @@ function RiskAnalysis() {
             <Package size={16} />
             Products tracked
           </div>
-          <div className="insight-stat-value">{products.length}</div>
+          <div className="insight-stat-value"><AnimatedCounter value={products.length} /></div>
           <p>Products available for AI screening.</p>
         </div>
 
@@ -91,7 +92,7 @@ function RiskAnalysis() {
             <ShieldAlert size={16} />
             High-risk products
           </div>
-          <div className="insight-stat-value">{highRiskProducts.length}</div>
+          <div className="insight-stat-value"><AnimatedCounter value={highRiskProducts.length} /></div>
           <p>Products with a return rate of 20% or more.</p>
         </div>
 
@@ -100,23 +101,11 @@ function RiskAnalysis() {
             <TrendingUp size={16} />
             Average return rate
           </div>
-          <div className="insight-stat-value">{averageReturnRate}%</div>
+          <div className="insight-stat-value"><AnimatedCounter value={averageReturnRate} suffix="%" decimals={1} /></div>
           <p>Portfolio-wide return pressure across all loaded products.</p>
         </div>
       </div>
 
-      <div className="glass-card" style={{ marginBottom: '24px' }}>
-        <h3 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertTriangle size={18} style={{ color: 'var(--color-warning)' }} />
-          Phase 2 AI Checks
-        </h3>
-        <div className="insight-list">
-          <div className="insight-list-item">Dashboard data loads without connection errors.</div>
-          <div className="insight-list-item">Products list shows real data and can open details.</div>
-          <div className="insight-list-item">High-return products appear at the top of this page.</div>
-          <div className="insight-list-item">Each product detail page renders risk score, root causes, reviews, returns, and support tabs.</div>
-        </div>
-      </div>
 
       {sortedProducts.length > 0 ? (
         <div className="data-table-wrapper">
