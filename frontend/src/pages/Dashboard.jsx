@@ -47,17 +47,17 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import AnimatedCounter from '../components/AnimatedCounter';
 
 // ---- Chart color palette ----
-const CHART_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#f97316'];
+const CHART_COLORS = ['#b77943', '#c9986b', '#d9776a', '#d1a440', '#6e9a7a', '#7a98ad', '#c98952'];
 
 // ---- Custom tooltip style for charts ----
 const customTooltipStyle = {
-  background: 'rgba(17, 24, 39, 0.95)',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
+  background: 'rgba(255, 251, 245, 0.98)',
+  border: '1px solid rgba(110, 84, 54, 0.12)',
   borderRadius: '8px',
   padding: '10px 14px',
   fontSize: '0.8rem',
-  color: '#e2e8f0',
-  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+  color: '#4b3a2a',
+  boxShadow: '0 12px 28px rgba(89, 63, 37, 0.12)',
 };
 
 
@@ -162,11 +162,17 @@ function Dashboard() {
     return Number(num).toLocaleString('en-IN');
   }
 
+  function toNumber(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
   function formatCurrency(num) {
-    if (!num) return '₹0';
-    if (num >= 100000) return `₹${(num / 100000).toFixed(1)}L`;
-    if (num >= 1000) return `₹${(num / 1000).toFixed(1)}K`;
-    return `₹${num}`;
+    const amount = toNumber(num);
+    if (!amount) return '₹0';
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+    if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+    return `₹${amount}`;
   }
 
   // ---- HELPER: Get color for return rate ----
@@ -179,23 +185,24 @@ function Dashboard() {
 
   const heroWatchItem = topReturned?.[0];
   const heroWatchLabel = heroWatchItem
-    ? `${heroWatchItem.name} is the biggest watch item at ${heroWatchItem.return_rate ?? heroWatchItem.returnRate ?? 0}% returns.`
+    ? `${heroWatchItem.name} is the biggest watch item at ${toNumber(heroWatchItem.return_rate ?? heroWatchItem.returnRate).toFixed(2)}% returns.`
     : '';
 
-  const heroSummary = stats?.avgReturnRate
-    ? `The current portfolio is showing a ${stats.avgReturnRate.toFixed(2)}% average return rate.${heroWatchLabel ? ` ${heroWatchLabel}` : ''}`
+  const averageReturnRate = toNumber(stats?.avgReturnRate, NaN);
+  const heroSummary = Number.isFinite(averageReturnRate) && averageReturnRate > 0
+    ? `The current portfolio is showing a ${averageReturnRate.toFixed(2)}% average return rate.${heroWatchLabel ? ` ${heroWatchLabel}` : ''}`
     : 'AI-powered risk insights make return patterns visible, explainable, and actionable.';
 
-  const integrityScore = stats?.integrityScore ?? 82;
+  const integrityScore = toNumber(stats?.integrityScore, 82);
   const refundPressure = stats?.refundPressure !== undefined
-    ? stats.refundPressure
+    ? toNumber(stats.refundPressure, 17.5)
     : stats?.refundCostShare !== undefined
-      ? stats.refundCostShare
+      ? toNumber(stats.refundCostShare, 17.5)
       : 17.5;
   const monthlyTrend = stats?.monthlyTrend !== undefined
-    ? stats.monthlyTrend
+    ? toNumber(stats.monthlyTrend, -31)
     : trends?.length > 1
-      ? Math.round((trends[trends.length - 1]?.returnCount ?? 0) - (trends[trends.length - 2]?.returnCount ?? 0))
+      ? Math.round(toNumber(trends[trends.length - 1]?.returnCount) - toNumber(trends[trends.length - 2]?.returnCount))
       : -31;
 
   const monthlyTrendLabel = monthlyTrend > 0 ? `+${monthlyTrend}` : `${monthlyTrend}`;
@@ -210,8 +217,12 @@ function Dashboard() {
 
   const highestStressCategory = categoryIssues?.[0];
   const categoryName = highestStressCategory?.category ?? highestStressCategory?.label ?? 'Clothing';
-  const categoryReturns = highestStressCategory?.returnCount ?? highestStressCategory?.returns ?? 41;
-  const categoryRate = highestStressCategory?.return_rate ?? highestStressCategory?.avgReturnRate ?? highestStressCategory?.avg_return_rate ?? 27.98;
+  const categoryReturns = toNumber(highestStressCategory?.returnCount ?? highestStressCategory?.returns, 41);
+  const categoryRate = toNumber(
+    highestStressCategory?.return_rate ?? highestStressCategory?.avgReturnRate ?? highestStressCategory?.avg_return_rate,
+    27.98
+  );
+  const categoryChartHeight = Math.max(200, categoryIssues.length * 36);
 
   // Custom tooltip component for the line chart
   const CustomTooltip = ({ active, payload, label }) => {
@@ -241,89 +252,6 @@ function Dashboard() {
         <h1>Returns Intelligence Dashboard</h1>
         <p>AI-powered insights across {stats?.totalProducts || 0} products • Real-time analysis</p>
       </div>
-
-      <div className="dashboard-hero-grid">
-        <div className="hero-card glass-card">
-          <div>
-            <span className="hero-badge">EXECUTIVE SUMMARY</span>
-            <h2>Return patterns are concentrated, explainable, and actionable.</h2>
-            <p>{heroSummary}</p>
-          </div>
-
-          <div className="hero-metrics-grid">
-            <div className="hero-metric">
-              <span className="metric-label">Integrity Score</span>
-              <span className="metric-value">{integrityScore}%</span>
-              <span className="metric-caption">Review reliability across the catalog</span>
-            </div>
-            <div className="hero-metric">
-              <span className="metric-label">Refund Pressure</span>
-              <span className="metric-value">{refundPressure}%</span>
-              <span className="metric-caption">Returns as a share of total units sold</span>
-            </div>
-            <div className="hero-metric">
-              <span className="metric-label">Monthly Trend</span>
-              <span className={`metric-value ${monthlyTrendDirection}`}>{monthlyTrendLabel}</span>
-              <span className="metric-caption">Change versus the previous month</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="dashboard-side-cards">
-          <div className="analysis-card glass-card">
-            <div className="analysis-card-header">
-              <AlertTriangle size={18} />
-              <span>Dominant Issue Cluster</span>
-            </div>
-            <div className="analysis-card-title">{dominantIssueLabel}</div>
-            <p>{dominantIssueShare}% of return records mention this issue family.</p>
-          </div>
-
-          <div className="analysis-card glass-card">
-            <div className="analysis-card-header">
-              <BarChart3 size={18} />
-              <span>Highest-Stress Category</span>
-            </div>
-            <div className="analysis-card-title">{categoryName}</div>
-            <p>{categoryReturns} returns with an average category return rate of {categoryRate}%.</p>
-          </div>
-        </div>
-      </div>
-
-      {alerts?.alerts?.length > 0 && (
-        <div className="dashboard-alerts-panel">
-          <div className="dashboard-alerts-header">
-            <h3>
-              <AlertTriangle size={18} style={{ color: '#f59e0b' }} />
-              Active Alerts
-            </h3>
-            <p>{alerts.summary}</p>
-          </div>
-
-          <div className="dashboard-alerts-list">
-            {alerts.alerts.map((alert) => (
-              <button
-                key={alert.id}
-                type="button"
-                className={`dashboard-alert-card ${alert.severity}`}
-                onClick={() => openCategoryProducts(alert.category, alert.issue)}
-              >
-                <div className="dashboard-alert-top">
-                  <span className={`action-priority ${alert.priority}`}>{alert.priority}</span>
-                  <span className={`dashboard-alert-severity ${alert.severity}`}>{alert.severity}</span>
-                </div>
-                <div className="dashboard-alert-title">{alert.category} • {alert.issue}</div>
-                <div className="dashboard-alert-message">{alert.message}</div>
-                <div className="dashboard-alert-meta">
-                  <span>{alert.returnCount} returns</span>
-                  <span>₹{formatNumber(alert.refundTotal)} refunds</span>
-                  <span>Owner: {alert.owner}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ===== SECTION 1: KPI STAT CARDS ===== */}
       <div className="stats-grid">
@@ -371,6 +299,41 @@ function Dashboard() {
         />
       </div>
 
+      {alerts?.alerts?.length > 0 && (
+        <div className="dashboard-alerts-panel">
+          <div className="dashboard-alerts-header">
+            <h3>
+              <AlertTriangle size={18} style={{ color: '#f59e0b' }} />
+              Active Alerts
+            </h3>
+            <p>{alerts.summary}</p>
+          </div>
+
+          <div className="dashboard-alerts-list">
+            {alerts.alerts.map((alert) => (
+              <button
+                key={alert.id}
+                type="button"
+                className={`dashboard-alert-card ${alert.severity}`}
+                onClick={() => openCategoryProducts(alert.category, alert.issue)}
+              >
+                <div className="dashboard-alert-top">
+                  <span className={`action-priority ${alert.priority}`}>{alert.priority}</span>
+                  <span className={`dashboard-alert-severity ${alert.severity}`}>{alert.severity}</span>
+                </div>
+                <div className="dashboard-alert-title">{alert.category} • {alert.issue}</div>
+                <div className="dashboard-alert-message">{alert.message}</div>
+                <div className="dashboard-alert-meta">
+                  <span>{alert.returnCount} returns</span>
+                  <span>₹{formatNumber(alert.refundTotal)} refunds</span>
+                  <span>Owner: {alert.owner}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ===== SECTION 2: CHARTS ===== */}
       <div className="charts-grid">
         {/* ---- Chart 1: Return Trends Over Time ---- */}
@@ -397,10 +360,10 @@ function Dashboard() {
               <Line 
                 type="monotone" 
                 dataKey="returnCount" 
-                stroke="#6366f1" 
+                stroke="#b77943" 
                 strokeWidth={2.5}
-                dot={{ fill: '#6366f1', r: 4 }}
-                activeDot={{ r: 6, stroke: '#6366f1', strokeWidth: 2 }}
+                dot={{ fill: '#b77943', r: 4 }}
+                activeDot={{ r: 6, stroke: '#b77943', strokeWidth: 2 }}
                 name="Returns"
               />
             </LineChart>
@@ -452,7 +415,7 @@ function Dashboard() {
           <BarChart3 size={18} style={{ color: '#10b981' }} />
           Returns by Category
         </h3>
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={categoryChartHeight}>
           <BarChart data={categoryIssues} layout="vertical" barCategoryGap="20%">
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
             <XAxis type="number" stroke="var(--text-tertiary)" fontSize={11} />
@@ -461,12 +424,13 @@ function Dashboard() {
               dataKey="category" 
               stroke="var(--text-tertiary)" 
               fontSize={11} 
-              width={110}
+              width={140}
+              interval={0}
             />
             <Tooltip contentStyle={customTooltipStyle} />
             <Bar 
               dataKey="returnCount" 
-              fill="#6366f1" 
+              fill="#c9986b" 
               radius={[0, 4, 4, 0]} 
               name="Returns"
             />

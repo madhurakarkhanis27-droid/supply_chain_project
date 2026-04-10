@@ -22,7 +22,7 @@
 // ============================================================
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -36,15 +36,22 @@ import RiskGauge from '../components/RiskGauge';
 import ReviewCard from '../components/ReviewCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import AnimatedCounter from '../components/AnimatedCounter';
+import { useAuth } from '../auth/AuthContext';
 
 
 function ProductDetail() {
   const { id } = useParams();     // Get product ID from URL
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const recommendationSourceId = searchParams.get('fromRecommendationOf');
+  const showRecommendations = !recommendationSourceId;
+  const isBusinessUser = user?.role === 'business';
 
   // ---- STATE ----
   const [data, setData] = useState(null);               // Product + AI analysis
   const [recommendations, setRecommendations] = useState(null);  // Alternative products
+  const [selectedComparison, setSelectedComparison] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); // Current tab
   const [error, setError] = useState(null);
@@ -60,11 +67,15 @@ function ProductDetail() {
         const detailRes = await axios.get(`/api/products/${id}?t=${Date.now()}`);
         setData(detailRes.data);
 
-        try {
-          const recsRes = await axios.get(`/api/products/${id}/recommendations`);
-          setRecommendations(recsRes.data);
-        } catch (recsError) {
-          console.error('Failed to load recommendations:', recsError);
+        if (showRecommendations) {
+          try {
+            const recsRes = await axios.get(`/api/products/${id}/recommendations`);
+            setRecommendations(recsRes.data);
+          } catch (recsError) {
+            console.error('Failed to load recommendations:', recsError);
+            setRecommendations({ recommendations: [] });
+          }
+        } else {
           setRecommendations({ recommendations: [] });
         }
       } catch (err) {
@@ -78,7 +89,7 @@ function ProductDetail() {
     }
 
     fetchProductData();
-  }, [id]);  // Re-fetch if ID changes
+  }, [id, showRecommendations]);  // Re-fetch if ID or recommendation context changes
 
 
   // ---- LOADING ----
@@ -139,6 +150,36 @@ function ProductDetail() {
     { name: 'Negative', value: negativeCount, color: '#ef4444' },
     { name: 'Neutral', value: neutralCount, color: '#94a3b8' }
   ].filter(d => d.value > 0);
+  const visibleTabs = isBusinessUser
+    ? ['overview', 'reviews', 'returns', 'support']
+    : ['overview', 'reviews'];
+  const comparisonRows = selectedComparison ? [
+    {
+      label: 'Price',
+      current: `Rs ${Number(product.price).toLocaleString('en-IN')}`,
+      alternative: `Rs ${Number(selectedComparison.price).toLocaleString('en-IN')}`,
+    },
+    {
+      label: 'Rating',
+      current: `${product.avg_rating}/5`,
+      alternative: `${selectedComparison.avg_rating}/5`,
+    },
+    {
+      label: 'Return rate',
+      current: `${product.return_rate}%`,
+      alternative: `${selectedComparison.return_rate}%`,
+    },
+    {
+      label: 'Main issue',
+      current: rootCause?.issueBreakdown?.[0]?.label || 'No strong recurring issue',
+      alternative: selectedComparison.rootCauseTopIssue || 'No strong recurring issue',
+    },
+    {
+      label: 'Root cause summary',
+      current: rootCause?.summary || 'No recurring root-cause pattern detected yet.',
+      alternative: selectedComparison.rootCauseSummary || 'No recurring root-cause pattern detected yet.',
+    }
+  ] : [];
 
 
   // ============================================================
@@ -192,7 +233,7 @@ function ProductDetail() {
 
       {/* ===== TABS ===== */}
       <div className="tabs">
-        {['overview', 'reviews', 'returns', 'support'].map(tab => (
+        {visibleTabs.map(tab => (
           <button
             key={tab}
             className={`tab ${activeTab === tab ? 'active' : ''}`}
@@ -294,80 +335,81 @@ function ProductDetail() {
             </div>
           </div>
 
-          {/* ---- Seller Action Plan ---- */}
-          <div className="glass-card animate-in" style={{ marginBottom: '24px' }}>
-            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <CheckCircle size={18} style={{ color: '#10b981' }} />
-              What The Business Should Do Next
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
-              {sellerActionPlan?.summary || 'AI will suggest seller actions once enough issue data is available.'}
-            </p>
+          {isBusinessUser && (
+            <div className="glass-card animate-in" style={{ marginBottom: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle size={18} style={{ color: '#10b981' }} />
+                What The Business Should Do Next
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
+                {sellerActionPlan?.summary || 'AI will suggest seller actions once enough issue data is available.'}
+              </p>
 
-            {sellerActionPlan?.actions?.length > 0 ? (
-              <>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '12px',
-                  flexWrap: 'wrap',
-                  marginBottom: '16px',
-                  padding: '12px 14px',
-                  background: 'rgba(16, 185, 129, 0.05)',
-                  border: '1px solid rgba(16, 185, 129, 0.12)',
-                  borderRadius: '10px'
-                }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Recommended review window
-                  </span>
-                  <span className="recommendation-badge closest">
-                    {sellerActionPlan.nextReviewWindow}
-                  </span>
-                </div>
-
-                {sellerActionPlan.actions.map((action) => (
-                  <div key={action.id} className="seller-action-card">
-                    <div className="seller-action-header">
-                      <div>
-                        <h4>{action.title}</h4>
-                        <p>{action.evidence}</p>
-                      </div>
-                      <div className="seller-action-badges">
-                        <span className={`action-priority ${action.priority}`}>{action.priority}</span>
-                        <span className="action-impact">{action.impact}</span>
-                      </div>
-                    </div>
-
-                    <div className="seller-action-meta">
-                      <span>Owner: {action.owner}</span>
-                      <span>{action.whyNow}</span>
-                    </div>
-
-                    <div className="seller-action-list">
-                      {action.actions.map((item) => (
-                        <div key={`${action.id}-${item}`} className="seller-action-item">
-                          {item}
-                        </div>
-                      ))}
-                    </div>
+              {sellerActionPlan?.actions?.length > 0 ? (
+                <>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    marginBottom: '16px',
+                    padding: '12px 14px',
+                    background: 'rgba(16, 185, 129, 0.05)',
+                    border: '1px solid rgba(16, 185, 129, 0.12)',
+                    borderRadius: '10px'
+                  }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      Recommended review window
+                    </span>
+                    <span className="recommendation-badge closest">
+                      {sellerActionPlan.nextReviewWindow}
+                    </span>
                   </div>
-                ))}
-              </>
-            ) : (
-              <div style={{
-                padding: '18px',
-                background: 'var(--bg-elevated)',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color)',
-                color: 'var(--text-secondary)',
-                fontSize: '0.85rem',
-                lineHeight: '1.7',
-              }}>
-                No seller action plan is available yet because this product does not have enough repeated issue evidence.
-              </div>
-            )}
-          </div>
+
+                  {sellerActionPlan.actions.map((action) => (
+                    <div key={action.id} className="seller-action-card">
+                      <div className="seller-action-header">
+                        <div>
+                          <h4>{action.title}</h4>
+                          <p>{action.evidence}</p>
+                        </div>
+                        <div className="seller-action-badges">
+                          <span className={`action-priority ${action.priority}`}>{action.priority}</span>
+                          <span className="action-impact">{action.impact}</span>
+                        </div>
+                      </div>
+
+                      <div className="seller-action-meta">
+                        <span>Owner: {action.owner}</span>
+                        <span>{action.whyNow}</span>
+                      </div>
+
+                      <div className="seller-action-list">
+                        {action.actions.map((item) => (
+                          <div key={`${action.id}-${item}`} className="seller-action-item">
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div style={{
+                  padding: '18px',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.85rem',
+                  lineHeight: '1.7',
+                }}>
+                  No seller action plan is available yet because this product does not have enough repeated issue evidence.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ---- Root Cause Analysis ---- */}
           <div className="glass-card animate-in" style={{ marginBottom: '24px' }}>
@@ -472,11 +514,11 @@ function ProductDetail() {
                   </Pie>
                   <RechartsTooltip 
                     contentStyle={{
-                      background: 'rgba(17, 24, 39, 0.95)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'rgba(255, 251, 245, 0.98)',
+                      border: '1px solid rgba(110, 84, 54, 0.12)',
                       borderRadius: '8px',
-                      color: '#e2e8f0',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
+                      color: '#4b3a2a',
+                      boxShadow: '0 12px 28px rgba(89, 63, 37, 0.12)'
                     }} 
                   />
                   <Legend 
@@ -490,7 +532,7 @@ function ProductDetail() {
           )}
 
           {/* ---- Recommendations ---- */}
-          {recommendations?.recommendations && recommendations.recommendations.length > 0 && (
+          {showRecommendations && recommendations?.recommendations && recommendations.recommendations.length > 0 && (
             <div className="glass-card animate-in">
               <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Award size={18} style={{ color: '#10b981' }} />
@@ -500,11 +542,53 @@ function ProductDetail() {
                 We only show genuinely similar products, prioritizing the same subcategory or the same product type.
               </p>
 
+              {!isBusinessUser && selectedComparison && (
+                <div className="glass-card" style={{ marginBottom: '18px', padding: '18px', background: 'rgba(255,255,255,0.02)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    <div>
+                      <h3 style={{ marginBottom: '4px' }}>Compare With Better Alternative</h3>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
+                        Current product vs {selectedComparison.name}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="back-btn"
+                      style={{ marginBottom: 0 }}
+                      onClick={() => setSelectedComparison(null)}
+                    >
+                      Close Comparison
+                    </button>
+                  </div>
+
+                  <div className="data-table-wrapper" style={{ marginBottom: 0 }}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Metric</th>
+                          <th>Current Product</th>
+                          <th>Better Alternative</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparisonRows.map((row) => (
+                          <tr key={row.label}>
+                            <td style={{ fontWeight: '600' }}>{row.label}</td>
+                            <td>{row.current}</td>
+                            <td>{row.alternative}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {recommendations.recommendations.map((rec) => (
                 <div 
                   key={rec.id} 
                   className="recommendation-card"
-                  onClick={() => navigate(`/products/${rec.id}`)}
+                  onClick={() => navigate(`/products/${rec.id}?fromRecommendationOf=${id}`)}
                   style={{ cursor: 'pointer' }}
                 >
                   <div className="improvement">
@@ -524,6 +608,35 @@ function ProductDetail() {
                       {rec.brand} | {rec.subcategory} | Rs {Number(rec.price).toLocaleString('en-IN')} | 
                       Rating {rec.avg_rating} | {rec.return_rate}% return rate
                     </div>
+
+                    <div style={{
+                      marginTop: '12px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        flexWrap: 'wrap',
+                        marginBottom: '6px'
+                      }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-heading)', letterSpacing: '0.04em' }}>
+                          ROOT CAUSE ANALYSIS
+                        </span>
+                        <span className="comparison-chip">
+                          {rec.rootCauseTopIssue}
+                          {rec.rootCauseIssueShare ? ` • ${rec.rootCauseIssueShare}%` : ''}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                        {rec.rootCauseSummary}
+                      </div>
+                    </div>
+
                     {rec.comparisonPoints?.length > 0 && (
                       <div className="recommendation-comparison">
                         {rec.comparisonPoints.map((point) => (
@@ -533,6 +646,22 @@ function ProductDetail() {
                         ))}
                       </div>
                     )}
+
+                    {!isBusinessUser && (
+                      <div style={{ marginTop: '12px' }}>
+                        <button
+                          type="button"
+                          className="back-btn"
+                          style={{ marginBottom: 0 }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedComparison(rec);
+                          }}
+                        >
+                          Compare Products
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <ArrowRight size={16} style={{ color: 'var(--text-tertiary)' }} />
                 </div>
@@ -540,7 +669,19 @@ function ProductDetail() {
             </div>
           )}
 
-          {recommendations?.recommendations && recommendations.recommendations.length === 0 && (
+          {!showRecommendations && (
+            <div className="glass-card animate-in">
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Award size={18} style={{ color: '#10b981' }} />
+                Alternative View
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: 0 }}>
+                You opened this product from an alternative suggestion, so we stop here to avoid sending you through another chain of recommendations.
+              </p>
+            </div>
+          )}
+
+          {showRecommendations && recommendations?.recommendations && recommendations.recommendations.length === 0 && (
             <div className="glass-card animate-in">
               <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Award size={18} style={{ color: '#10b981' }} />
@@ -625,7 +766,7 @@ function ProductDetail() {
 
 
       {/* ===== TAB: RETURNS ===== */}
-      {activeTab === 'returns' && (
+      {isBusinessUser && activeTab === 'returns' && (
         <div>
           <div className="glass-card animate-in" style={{ marginBottom: '20px' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -682,7 +823,7 @@ function ProductDetail() {
 
 
       {/* ===== TAB: SUPPORT TICKETS ===== */}
-      {activeTab === 'support' && (
+      {isBusinessUser && activeTab === 'support' && (
         <div>
           <div className="glass-card animate-in" style={{ marginBottom: '20px' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -748,5 +889,3 @@ function ProductDetail() {
 }
 
 export default ProductDetail;
-
-

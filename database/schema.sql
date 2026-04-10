@@ -17,7 +17,21 @@ CREATE DATABASE IF NOT EXISTS supply_chain;
 USE supply_chain;
 
 -- ============================================================
--- TABLE 1: PRODUCTS
+-- TABLE 1: USERS
+-- Stores application login credentials and profile roles
+-- ============================================================
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    login_id VARCHAR(100) NOT NULL UNIQUE,
+    display_name VARCHAR(100) NOT NULL,
+    role ENUM('business', 'customer') NOT NULL,
+    password_hash CHAR(128) NOT NULL,
+    password_salt VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================
+-- TABLE 2: PRODUCTS
 -- Stores information about each product in our catalog
 -- Think of this like a product listing on Amazon/Flipkart
 -- ============================================================
@@ -39,7 +53,7 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 -- ============================================================
--- TABLE 2: REVIEWS
+-- TABLE 3: REVIEWS
 -- Stores customer reviews for products
 -- This is the RAW TEXT data our AI will analyze
 -- ============================================================
@@ -66,7 +80,7 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 
 -- ============================================================
--- TABLE 3: RETURNS
+-- TABLE 4: RETURNS
 -- Stores data about product returns
 -- Each row = one customer returning one product
 -- ============================================================
@@ -95,7 +109,7 @@ CREATE TABLE IF NOT EXISTS returns (
 );
 
 -- ============================================================
--- TABLE 4: CUSTOMER SUPPORT TICKETS
+-- TABLE 5: CUSTOMER SUPPORT TICKETS
 -- Stores customer complaints/queries from support channels
 -- Another valuable data source for understanding WHY returns happen
 -- ============================================================
@@ -114,7 +128,7 @@ CREATE TABLE IF NOT EXISTS customer_support_tickets (
 );
 
 -- ============================================================
--- TABLE 5: AI INSIGHTS (Cache)
+-- TABLE 6: AI INSIGHTS (Cache)
 -- Stores the AI-generated insights for each product
 -- This is pre-computed so the dashboard loads FAST
 -- ============================================================
@@ -140,3 +154,4 @@ CREATE INDEX idx_support_product ON customer_support_tickets(product_id);
 CREATE INDEX idx_insights_product ON ai_insights(product_id);
 CREATE INDEX idx_products_category ON products(category);
 CREATE INDEX idx_returns_reason ON returns(return_reason);
+CREATE INDEX idx_users_login_id ON users(login_id);

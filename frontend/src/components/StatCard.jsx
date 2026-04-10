@@ -23,13 +23,13 @@ import React from 'react';
 
 // Color mappings — each card type gets its own color scheme
 const colorMap = {
-  indigo:  { bg: 'rgba(99, 102, 241, 0.1)',  text: '#6366f1', glow: 'rgba(99, 102, 241, 0.2)' },
-  purple:  { bg: 'rgba(139, 92, 246, 0.1)',  text: '#8b5cf6', glow: 'rgba(139, 92, 246, 0.2)' },
+  indigo:  { bg: 'rgba(183, 121, 67, 0.12)',  text: '#9a6233', glow: 'rgba(183, 121, 67, 0.16)' },
+  purple:  { bg: 'rgba(210, 166, 121, 0.18)',  text: '#b77943', glow: 'rgba(210, 166, 121, 0.16)' },
   emerald: { bg: 'rgba(16, 185, 129, 0.1)',  text: '#10b981', glow: 'rgba(16, 185, 129, 0.2)' },
   amber:   { bg: 'rgba(245, 158, 11, 0.1)',  text: '#f59e0b', glow: 'rgba(245, 158, 11, 0.2)' },
   red:     { bg: 'rgba(239, 68, 68, 0.1)',   text: '#ef4444', glow: 'rgba(239, 68, 68, 0.2)' },
-  blue:    { bg: 'rgba(59, 130, 246, 0.1)',   text: '#3b82f6', glow: 'rgba(59, 130, 246, 0.2)' },
-  cyan:    { bg: 'rgba(6, 182, 212, 0.1)',    text: '#06b6d4', glow: 'rgba(6, 182, 212, 0.2)' },
+  blue:    { bg: 'rgba(111, 146, 175, 0.14)',   text: '#55748f', glow: 'rgba(111, 146, 175, 0.16)' },
+  cyan:    { bg: 'rgba(122, 164, 152, 0.14)',    text: '#4f7d72', glow: 'rgba(122, 164, 152, 0.16)' },
 };
 
 function StatCard({ title, value, icon: Icon, color = 'indigo', subtitle }) {

@@ -1,72 +1,78 @@
-// ============================================================
-// FILE: frontend/src/App.jsx
-// PURPOSE: Root component — sets up routing and layout
-// ============================================================
-// This is the TOP-LEVEL component that wraps our entire app.
-//
-// STRUCTURE:
-//   <BrowserRouter>         ← Enables URL-based navigation
-//     <div class="app-layout">
-//       <Sidebar />         ← Always visible on the left
-//       <main>              ← Main content area (changes per page)
-//         <Routes>          ← React Router decides which page to show
-//           /              → Dashboard
-//           /products      → ProductsList
-//           /products/:id  → ProductDetail
-//         </Routes>
-//       </main>
-//     </div>
-//   </BrowserRouter>
-//
-// HOW ROUTING WORKS:
-//   - User visits http://localhost:5173/         → sees Dashboard
-//   - User visits http://localhost:5173/products → sees ProductsList
-//   - User visits http://localhost:5173/products/7 → sees ProductDetail for product 7
-//   - Sidebar links use <NavLink> to change the URL without page reload
-// ============================================================
-
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-
-// Layout component
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
-
-// Page components
 import Dashboard from './pages/Dashboard';
 import ProductsList from './pages/ProductsList';
 import ProductDetail from './pages/ProductDetail';
 import RiskAnalysis from './pages/RiskAnalysis';
 import FakeReviewDetector from './pages/FakeReviewDetector';
+import Login from './pages/Login';
+import { useAuth } from './auth/AuthContext';
 
+function RequireAuth() {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <Outlet />;
+}
+
+function RequireRole({ allowedRoles }) {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to={user.role === 'business' ? '/' : '/products'} replace />;
+  }
+
+  return <Outlet />;
+}
+
+function AppShell() {
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <main className="main-content">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+function HomeRoute() {
+  const { user } = useAuth();
+  return <Navigate to={user?.role === 'business' ? '/dashboard' : '/products'} replace />;
+}
 
 function App() {
   return (
     <Router>
-      <div className="app-layout">
-        {/* Sidebar — always visible */}
-        <Sidebar />
+      <Routes>
+        <Route path="/login" element={<Login />} />
 
-        {/* Main content — changes based on URL */}
-        <main className="main-content">
-          <Routes>
-            {/* Route 1: Dashboard (home page) */}
-            <Route path="/" element={<Dashboard />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<HomeRoute />} />
 
-            {/* Route 2: All products list */}
+          <Route element={<AppShell />}>
             <Route path="/products" element={<ProductsList />} />
-
-            {/* Route 3: Portfolio-wide risk analysis */}
-            <Route path="/risk-analysis" element={<RiskAnalysis />} />
-
-            {/* Route 4: Fake review detector */}
-            <Route path="/fake-review-detector" element={<FakeReviewDetector />} />
-
-            {/* Route 5: Single product detail with AI analysis */}
-            {/* The ":id" is a URL parameter — React Router captures it */}
             <Route path="/products/:id" element={<ProductDetail />} />
-          </Routes>
-        </main>
-      </div>
+
+            <Route element={<RequireRole allowedRoles={['business']} />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/risk-analysis" element={<RiskAnalysis />} />
+              <Route path="/fake-review-detector" element={<FakeReviewDetector />} />
+            </Route>
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </Router>
   );
 }

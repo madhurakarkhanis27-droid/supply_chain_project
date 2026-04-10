@@ -87,18 +87,470 @@ const newProducts = [
   { name: 'Radiance Face Serum', category: 'Beauty', subcategory: 'Skincare', price: 799.00, brand: 'PureDerma', description: 'Dermatologist tested, stable Vitamin C formula for glowing skin.', avg_rating: 4.8, return_rate: 1 }
 ];
 
+const seededScenarios = {
+  'Bean Bag Chair': {
+    avg_rating: 2.5,
+    return_rate: 18,
+    reviews: [
+      {
+        customer_name: 'Amit S.',
+        rating: 2,
+        review_text: 'The stitching tore open after just a week. Poor quality material and flimsy seams.',
+        review_date: '2026-03-01',
+        verified_purchase: true,
+        helpful_votes: 12
+      },
+      {
+        customer_name: 'Priya D.',
+        rating: 1,
+        review_text: 'Very flimsy and broke easily. The quality is terrible and the thread comes off.',
+        review_date: '2026-03-10',
+        verified_purchase: true,
+        helpful_votes: 8
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Rahul K.',
+        return_date: '2026-03-15',
+        return_reason: 'Quality issue',
+        detailed_notes: 'The seam ripped and beans spilled everywhere. Very poor quality.',
+        refund_amount: 1299.00,
+        ai_extracted_issue: 'quality_poor'
+      },
+      {
+        customer_name: 'Sneha M.',
+        return_date: '2026-03-20',
+        return_reason: 'Defective',
+        detailed_notes: 'It fell apart at the seams. Terrible quality stitching.',
+        refund_amount: 1299.00,
+        ai_extracted_issue: 'quality_poor'
+      }
+    ],
+    tickets: [
+      {
+        customer_name: 'Amit S.',
+        issue_type: 'Product issue',
+        message: 'The filling is leaking out from the side seam after normal use.',
+        status: 'open',
+        ticket_date: '2026-03-08'
+      }
+    ]
+  },
+  'UltraSoft T-Shirt': {
+    avg_rating: 3.3,
+    return_rate: 11,
+    reviews: [
+      {
+        customer_name: 'Neha P.',
+        rating: 2,
+        review_text: 'Fabric feels soft but the color is much duller than the product photo. Looked beige instead of blush pink.',
+        review_date: '2026-02-11',
+        verified_purchase: true,
+        helpful_votes: 6
+      },
+      {
+        customer_name: 'Karan J.',
+        rating: 3,
+        review_text: 'Comfortable t-shirt, but the shade is off compared with the listing images.',
+        review_date: '2026-02-18',
+        verified_purchase: true,
+        helpful_votes: 4
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Neha P.',
+        return_date: '2026-02-16',
+        return_reason: 'Color mismatch',
+        detailed_notes: 'The actual color is darker than shown in the picture and does not match the catalog photo.',
+        refund_amount: 899.00,
+        ai_extracted_issue: 'color_mismatch'
+      }
+    ]
+  },
+  'FlexFit Denim Jeans': {
+    avg_rating: 3.1,
+    return_rate: 13,
+    reviews: [
+      {
+        customer_name: 'Rohit M.',
+        rating: 2,
+        review_text: 'Waist runs much smaller than the size chart. Could not get the jeans over my hips.',
+        review_date: '2026-01-19',
+        verified_purchase: true,
+        helpful_votes: 7
+      },
+      {
+        customer_name: 'Ananya R.',
+        rating: 3,
+        review_text: 'Good denim quality but the fit is inconsistent. One leg feels tighter than expected.',
+        review_date: '2026-01-26',
+        verified_purchase: true,
+        helpful_votes: 5
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Rohit M.',
+        return_date: '2026-01-23',
+        return_reason: 'Size issue',
+        detailed_notes: 'Sizing runs small. The waist measurement is not accurate to the chart.',
+        refund_amount: 1999.00,
+        ai_extracted_issue: 'size_mismatch'
+      }
+    ]
+  },
+  'ActivePro Smartwatch': {
+    avg_rating: 3.4,
+    return_rate: 10,
+    reviews: [
+      {
+        customer_name: 'Dev A.',
+        rating: 2,
+        review_text: 'Bluetooth disconnects during workouts and the watch keeps losing connection to the app.',
+        review_date: '2026-03-05',
+        verified_purchase: true,
+        helpful_votes: 9
+      },
+      {
+        customer_name: 'Tanya L.',
+        rating: 3,
+        review_text: 'Looks great but pairing is unstable and sync with the phone drops often.',
+        review_date: '2026-03-08',
+        verified_purchase: true,
+        helpful_votes: 5
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Dev A.',
+        return_date: '2026-03-12',
+        return_reason: 'Connectivity issue',
+        detailed_notes: 'Bluetooth pairing fails repeatedly and the signal disconnects mid run.',
+        refund_amount: 4299.00,
+        ai_extracted_issue: 'connectivity_issue'
+      }
+    ],
+    tickets: [
+      {
+        customer_name: 'Tanya L.',
+        issue_type: 'Connectivity',
+        message: 'The watch loses connection with the phone every few hours.',
+        status: 'resolved',
+        ticket_date: '2026-03-10'
+      }
+    ]
+  },
+  'SmartClean Robot Vacuum': {
+    avg_rating: 3.5,
+    return_rate: 9,
+    reviews: [
+      {
+        customer_name: 'Manish K.',
+        rating: 2,
+        review_text: 'The app crashes during mapping and the vacuum freezes before finishing one room.',
+        review_date: '2026-02-02',
+        verified_purchase: true,
+        helpful_votes: 10
+      },
+      {
+        customer_name: 'Ishita V.',
+        rating: 3,
+        review_text: 'Hardware seems fine, but the software is buggy and the interface gets stuck after updates.',
+        review_date: '2026-02-07',
+        verified_purchase: true,
+        helpful_votes: 4
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Manish K.',
+        return_date: '2026-02-09',
+        return_reason: 'App issue',
+        detailed_notes: 'Firmware update caused repeated crashes and the robot became unresponsive.',
+        refund_amount: 14999.00,
+        ai_extracted_issue: 'software_issue'
+      }
+    ]
+  },
+  'Radiance Face Serum': {
+    avg_rating: 3.2,
+    return_rate: 8,
+    reviews: [
+      {
+        customer_name: 'Sonal B.',
+        rating: 1,
+        review_text: 'This caused a rash and burning sensation on my cheeks after two uses.',
+        review_date: '2026-01-12',
+        verified_purchase: true,
+        helpful_votes: 11
+      },
+      {
+        customer_name: 'Mahi T.',
+        rating: 2,
+        review_text: 'Strong chemical smell and skin irritation around my jawline.',
+        review_date: '2026-01-14',
+        verified_purchase: true,
+        helpful_votes: 7
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Sonal B.',
+        return_date: '2026-01-18',
+        return_reason: 'Skin reaction',
+        detailed_notes: 'Product caused irritation, redness, and a mild breakout. Feels unsafe for sensitive skin.',
+        refund_amount: 799.00,
+        ai_extracted_issue: 'safety_concern'
+      }
+    ],
+    tickets: [
+      {
+        customer_name: 'Mahi T.',
+        issue_type: 'Safety',
+        message: 'Need help with refund because the serum caused burning and irritation.',
+        status: 'open',
+        ticket_date: '2026-01-16'
+      }
+    ]
+  },
+  'Olive Oil Extra Virgin': {
+    avg_rating: 3.6,
+    return_rate: 7,
+    reviews: [
+      {
+        customer_name: 'Vikram N.',
+        rating: 2,
+        review_text: 'Oil quality seems okay but the bottle arrived leaked and the packaging was soaked.',
+        review_date: '2026-02-21',
+        verified_purchase: true,
+        helpful_votes: 6
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Vikram N.',
+        return_date: '2026-02-24',
+        return_reason: 'Damaged delivery',
+        detailed_notes: 'Cap was loose and the box had oil stains from shipping damage.',
+        refund_amount: 999.00,
+        ai_extracted_issue: 'shipping_damage'
+      }
+    ]
+  },
+  'ZenithBook 14"': {
+    avg_rating: 3.5,
+    return_rate: 6,
+    reviews: [
+      {
+        customer_name: 'Arjun C.',
+        rating: 3,
+        review_text: 'Laptop is fast, but the battery life is nowhere near the 12 hours claimed in the listing.',
+        review_date: '2026-03-03',
+        verified_purchase: true,
+        helpful_votes: 8
+      }
+    ],
+    returns: [
+      {
+        customer_name: 'Arjun C.',
+        return_date: '2026-03-09',
+        return_reason: 'Not as described',
+        detailed_notes: 'Advertised battery hours are misleading. Real usage lasted less than 6 hours.',
+        refund_amount: 56999.00,
+        ai_extracted_issue: 'misleading_specs'
+      }
+    ]
+  },
+  'CrystalClear Earbuds': {
+    avg_rating: 4.8,
+    return_rate: 1,
+    reviews: [
+      {
+        customer_name: 'Harsh P.',
+        rating: 5,
+        review_text: 'Battery life is excellent, fit is secure, and the sound stays balanced even on calls.',
+        review_date: '2026-02-03',
+        verified_purchase: true,
+        helpful_votes: 14
+      },
+      {
+        customer_name: 'Deepa R.',
+        rating: 5,
+        review_text: 'Compact case, fast pairing, and no connection issues so far. Very reliable earbuds.',
+        review_date: '2026-02-11',
+        verified_purchase: true,
+        helpful_votes: 9
+      }
+    ]
+  },
+  'Titanium Cookware Set': {
+    avg_rating: 4.7,
+    return_rate: 1,
+    reviews: [
+      {
+        customer_name: 'Bhavna S.',
+        rating: 5,
+        review_text: 'Heats evenly, handles stay cool, and the coating still looks new after daily use.',
+        review_date: '2026-01-09',
+        verified_purchase: true,
+        helpful_votes: 13
+      },
+      {
+        customer_name: 'Ritesh G.',
+        rating: 4,
+        review_text: 'Solid cookware set with sturdy lids and easy cleanup. Feels premium.',
+        review_date: '2026-01-13',
+        verified_purchase: true,
+        helpful_votes: 7
+      }
+    ]
+  },
+  'Premium Memory Foam Bean Bag': {
+    avg_rating: 4.9,
+    return_rate: 0,
+    reviews: [
+      {
+        customer_name: 'Nupur W.',
+        rating: 5,
+        review_text: 'Supportive foam, durable cover, and still fluffy after a month of use.',
+        review_date: '2026-03-04',
+        verified_purchase: true,
+        helpful_votes: 10
+      },
+      {
+        customer_name: 'Sameer H.',
+        rating: 5,
+        review_text: 'Comfortable for long reading sessions and the stitching feels much stronger than cheaper options.',
+        review_date: '2026-03-07',
+        verified_purchase: true,
+        helpful_votes: 8
+      }
+    ]
+  }
+};
+
+async function insertSeedReviews(productId, reviews = []) {
+  for (const review of reviews) {
+    const [existingReviews] = await pool.query(
+      `SELECT id FROM reviews
+       WHERE product_id = ? AND customer_name = ? AND review_text = ?
+       LIMIT 1`,
+      [productId, review.customer_name, review.review_text]
+    );
+
+    if (existingReviews.length > 0) continue;
+
+    await pool.query(
+      `INSERT INTO reviews
+      (product_id, customer_name, rating, review_text, review_date, verified_purchase, helpful_votes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        productId,
+        review.customer_name,
+        review.rating,
+        review.review_text,
+        review.review_date,
+        review.verified_purchase,
+        review.helpful_votes
+      ]
+    );
+  }
+}
+
+async function insertSeedReturns(productId, returns = []) {
+  for (const ret of returns) {
+    const [existingReturns] = await pool.query(
+      `SELECT id FROM returns
+       WHERE product_id = ? AND customer_name = ? AND detailed_notes = ?
+       LIMIT 1`,
+      [productId, ret.customer_name, ret.detailed_notes]
+    );
+
+    if (existingReturns.length > 0) continue;
+
+    await pool.query(
+      `INSERT INTO returns
+      (product_id, customer_name, return_date, return_reason, detailed_notes, refund_amount, return_status, ai_extracted_issue)
+      VALUES (?, ?, ?, ?, ?, ?, 'completed', ?)`,
+      [
+        productId,
+        ret.customer_name,
+        ret.return_date,
+        ret.return_reason,
+        ret.detailed_notes,
+        ret.refund_amount,
+        ret.ai_extracted_issue
+      ]
+    );
+  }
+}
+
+async function insertSeedTickets(productId, tickets = []) {
+  for (const ticket of tickets) {
+    const [existingTickets] = await pool.query(
+      `SELECT id FROM customer_support_tickets
+       WHERE product_id = ? AND customer_name = ? AND message = ?
+       LIMIT 1`,
+      [productId, ticket.customer_name, ticket.message]
+    );
+
+    if (existingTickets.length > 0) continue;
+
+    await pool.query(
+      `INSERT INTO customer_support_tickets
+      (product_id, customer_name, issue_type, message, status, ticket_date)
+      VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        productId,
+        ticket.customer_name,
+        ticket.issue_type,
+        ticket.message,
+        ticket.status,
+        ticket.ticket_date
+      ]
+    );
+  }
+}
+
 async function seedNewProducts() {
   try {
+    let insertedCount = 0;
+    let skippedCount = 0;
+
     for (const product of newProducts) {
+      const scenario = seededScenarios[product.name];
+      const [existingProducts] = await pool.query(
+        'SELECT id FROM products WHERE name = ? AND brand = ? LIMIT 1',
+        [product.name, product.brand]
+      );
+
+      if (existingProducts.length > 0) {
+        const existingProductId = existingProducts[0].id;
+        if (scenario) {
+          await insertSeedReviews(existingProductId, scenario.reviews);
+          await insertSeedReturns(existingProductId, scenario.returns);
+          await insertSeedTickets(existingProductId, scenario.tickets);
+        }
+        skippedCount++;
+        continue;
+      }
+
       // Adding somewhat randomized stats so it looks real
       const total_sold = Math.floor(Math.random() * 800) + 100;
       // return rate between 2% and 15% unless specified
-      const returnRatePercentage = product.return_rate || (Math.floor(Math.random() * 13) + 2);
-      const total_returned = Math.floor((total_sold * returnRatePercentage) / 100);
+      const returnRatePercentage = scenario?.return_rate ?? product.return_rate ?? (Math.floor(Math.random() * 13) + 2);
+      const seededReturnCount = scenario?.returns?.length || 0;
+      const total_returned = Math.max(
+        seededReturnCount,
+        Math.floor((total_sold * returnRatePercentage) / 100)
+      );
       const return_rate = (total_returned / total_sold) * 100;
 
-      const avg_rating = product.avg_rating || (Math.random() * 2 + 3).toFixed(1); // 3.0 to 5.0
-      const total_reviews = Math.floor(Math.random() * 80) + 10;
+      const avg_rating = scenario?.avg_rating ?? product.avg_rating ?? (Math.random() * 2 + 3).toFixed(1); // 3.0 to 5.0
+      const seededReviewCount = scenario?.reviews?.length || 0;
+      const total_reviews = Math.max(seededReviewCount, Math.floor(Math.random() * 80) + 10);
 
       const query = `
         INSERT INTO products 
@@ -121,20 +573,15 @@ async function seedNewProducts() {
       ]);
       const productId = result.insertId;
 
-      // Force realistic issue data for the Bean Bag Chair so the AI Root Cause engine activates!
-      if (product.name === 'Bean Bag Chair' && product.brand === 'LoungePlus') {
-        const badReview1 = `INSERT INTO reviews (product_id, customer_name, rating, review_text, review_date, verified_purchase, helpful_votes) VALUES (?, 'Amit S.', 2, 'The stitching tore open after just a week! Poor quality material and flimsy.', '2026-03-01', TRUE, 12)`;
-        const badReview2 = `INSERT INTO reviews (product_id, customer_name, rating, review_text, review_date, verified_purchase, helpful_votes) VALUES (?, 'Priya D.', 1, 'Very flimsy and broke easily. The quality is terrible and thread comes off.', '2026-03-10', TRUE, 8)`;
-        const badReturn1 = `INSERT INTO returns (product_id, customer_name, return_date, return_reason, detailed_notes, refund_amount, ai_extracted_issue) VALUES (?, 'Rahul K.', '2026-03-15', 'Quality issue', 'The seam ripped and beans spilled everywhere. Very poor quality.', 1299.00, 'quality_poor')`;
-        const badReturn2 = `INSERT INTO returns (product_id, customer_name, return_date, return_reason, detailed_notes, refund_amount, ai_extracted_issue) VALUES (?, 'Sneha M.', '2026-03-20', 'Defective', 'It fell apart at the seams. Terrible quality stitching.', 1299.00, 'quality_poor')`;
-        
-        await pool.query(badReview1, [productId]);
-        await pool.query(badReview2, [productId]);
-        await pool.query(badReturn1, [productId]);
-        await pool.query(badReturn2, [productId]);
+      if (scenario) {
+        await insertSeedReviews(productId, scenario.reviews);
+        await insertSeedReturns(productId, scenario.returns);
+        await insertSeedTickets(productId, scenario.tickets);
       }
+
+      insertedCount++;
     }
-    console.log('Successfully inserted 50 new products!');
+    console.log(`Seed complete. Inserted ${insertedCount} products, skipped ${skippedCount} existing products.`);
     process.exit(0);
   } catch (error) {
     console.error('Error inserting products:', error);

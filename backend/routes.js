@@ -19,6 +19,7 @@ const router = express.Router();  // Router is like a sub-app for organizing rou
 
 // Import our database connection
 const db = require('./db');
+const { verifyPassword } = require('./auth-utils');
 
 // Import our AI/NLP engine (the brain!)
 const { 
@@ -26,8 +27,114 @@ const {
   analyzeSentiment, 
   detectFakeReview, 
   calculateRiskScore, 
-  generateRootCauseAnalysis 
+  generateRootCauseAnalysis,
+  generateSellerActionPlan
 } = require('./nlp-engine');
+
+function normalizeReviewText(text = '') {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeName(name = '') {
+  return String(name).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function buildReviewMetadataContext(reviews = [], returns = [], tickets = []) {
+  const reviewContext = {};
+  const reviewsByProduct = new Map();
+  const returnsByProduct = new Map();
+  const ticketsByProduct = new Map();
+
+  for (const review of reviews) {
+    const productId = review.product_id ?? 'global';
+    if (!reviewsByProduct.has(productId)) reviewsByProduct.set(productId, []);
+    reviewsByProduct.get(productId).push(review);
+  }
+
+  for (const ret of returns) {
+    const productId = ret.product_id ?? 'global';
+    if (!returnsByProduct.has(productId)) returnsByProduct.set(productId, []);
+    returnsByProduct.get(productId).push(ret);
+  }
+
+  for (const ticket of tickets) {
+    const productId = ticket.product_id ?? 'global';
+    if (!ticketsByProduct.has(productId)) ticketsByProduct.set(productId, []);
+    ticketsByProduct.get(productId).push(ticket);
+  }
+
+  for (const [productId, productReviews] of reviewsByProduct.entries()) {
+    const productReturns = returnsByProduct.get(productId) || [];
+    const productTickets = ticketsByProduct.get(productId) || [];
+    const textCounts = new Map();
+    const reviewerCounts = new Map();
+    const returnNames = new Set(productReturns.map((ret) => normalizeName(ret.customer_name)));
+    const ticketNames = new Set(productTickets.map((ticket) => normalizeName(ticket.customer_name)));
+    const reviewDates = productReviews
+      .map((review) => ({
+        id: review.id,
+        time: review.review_date ? new Date(review.review_date).getTime() : NaN
+      }))
+      .filter((item) => Number.isFinite(item.time))
+      .sort((a, b) => a.time - b.time);
+
+    for (const review of productReviews) {
+      const normalizedText = normalizeReviewText(review.review_text);
+      if (normalizedText) {
+        textCounts.set(normalizedText, (textCounts.get(normalizedText) || 0) + 1);
+      }
+
+      const normalizedReviewer = normalizeName(review.customer_name);
+      if (normalizedReviewer) {
+        reviewerCounts.set(normalizedReviewer, (reviewerCounts.get(normalizedReviewer) || 0) + 1);
+      }
+    }
+
+    const burstCounts = new Map();
+    for (let index = 0; index < reviewDates.length; index++) {
+      const current = reviewDates[index];
+      let nearbyCount = 1;
+
+      for (let left = index - 1; left >= 0; left--) {
+        if (current.time - reviewDates[left].time <= 24 * 60 * 60 * 1000) nearbyCount++;
+        else break;
+      }
+
+      for (let right = index + 1; right < reviewDates.length; right++) {
+        if (reviewDates[right].time - current.time <= 24 * 60 * 60 * 1000) nearbyCount++;
+        else break;
+      }
+
+      burstCounts.set(current.id, nearbyCount);
+    }
+
+    const firstReviewTime = reviewDates[0]?.time;
+
+    for (const review of productReviews) {
+      const normalizedText = normalizeReviewText(review.review_text);
+      const normalizedReviewer = normalizeName(review.customer_name);
+      const reviewTime = review.review_date ? new Date(review.review_date).getTime() : NaN;
+      const daysSinceFirstReviewForProduct = Number.isFinite(firstReviewTime) && Number.isFinite(reviewTime)
+        ? Math.round((reviewTime - firstReviewTime) / (24 * 60 * 60 * 1000))
+        : null;
+
+      reviewContext[review.id] = {
+        duplicateTextCount: normalizedText ? (textCounts.get(normalizedText) || 0) : 0,
+        reviewerReviewCount: normalizedReviewer ? (reviewerCounts.get(normalizedReviewer) || 0) : 0,
+        burstReviewCount: burstCounts.get(review.id) || 1,
+        hasRelatedReturn: normalizedReviewer ? returnNames.has(normalizedReviewer) : false,
+        hasSupportTicket: normalizedReviewer ? ticketNames.has(normalizedReviewer) : false,
+        daysSinceFirstReviewForProduct,
+      };
+    }
+  }
+
+  return reviewContext;
+}
 
 
 // ============================================================
@@ -54,6 +161,53 @@ router.get('/health/db', async (req, res) => {
       message: 'Database connection failed',
       details: error.message
     });
+  }
+});
+
+
+// ============================================================
+// ROUTE 1B: LOGIN
+// URL: POST /api/auth/login
+// PURPOSE: Authenticate a user by login id + password stored in MySQL
+// ============================================================
+router.post('/auth/login', async (req, res) => {
+  try {
+    const { loginId, password } = req.body;
+
+    if (!loginId || !password) {
+      return res.status(400).json({ error: 'loginId and password are required.' });
+    }
+
+    const [users] = await db.query(
+      `SELECT id, login_id, display_name, role, password_hash, password_salt
+       FROM users
+       WHERE login_id = ?
+       LIMIT 1`,
+      [loginId]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({ error: 'Invalid login ID or password.' });
+    }
+
+    const user = users[0];
+    const isValid = verifyPassword(password, user.password_salt, user.password_hash);
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid login ID or password.' });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        loginId: user.login_id,
+        name: user.display_name,
+        role: user.role,
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to sign in.' });
   }
 });
 
@@ -91,9 +245,12 @@ router.get('/dashboard/stats', async (req, res) => {
     // Query 3: Count suspicious reviews detected
     // We'll run our fake detection on recent reviews
     const [reviews] = await db.query(`SELECT * FROM reviews`);
+    const [returns] = await db.query(`SELECT * FROM returns`);
+    const [tickets] = await db.query(`SELECT * FROM customer_support_tickets`);
+    const reviewContext = buildReviewMetadataContext(reviews, returns, tickets);
     let suspiciousCount = 0;
     for (const review of reviews) {
-      const result = detectFakeReview(review);
+      const result = detectFakeReview(review, reviewContext[review.id]);
       if (result.isSuspicious) suspiciousCount++;
     }
 
@@ -104,19 +261,41 @@ router.get('/dashboard/stats', async (req, res) => {
       FROM customer_support_tickets
     `);
 
+    const [monthlyReturns] = await db.query(`
+      SELECT DATE_FORMAT(return_date, '%Y-%m') as month, COUNT(*) as returnCount
+      FROM returns
+      GROUP BY DATE_FORMAT(return_date, '%Y-%m')
+      ORDER BY month ASC
+    `);
+
+    const currentMonthReturns = Number(monthlyReturns[monthlyReturns.length - 1]?.returnCount || 0);
+    const previousMonthReturns = Number(monthlyReturns[monthlyReturns.length - 2]?.returnCount || 0);
+    const monthlyTrend = currentMonthReturns - previousMonthReturns;
+    const totalSold = Number(productStats[0].totalSold || 0);
+    const totalReturned = Number(productStats[0].totalReturned || 0);
+    const integrityScore = reviews.length > 0
+      ? Math.round(((reviews.length - suspiciousCount) / reviews.length) * 100)
+      : 100;
+    const refundPressure = totalSold > 0
+      ? Math.round((totalReturned / totalSold) * 10000) / 100
+      : 0;
+
     // Send all stats as one JSON response
     res.json({
-      totalProducts: productStats[0].totalProducts,
-      totalSold: productStats[0].totalSold,
-      totalReturned: productStats[0].totalReturned,
-      avgReturnRate: productStats[0].avgReturnRate,
-      avgRating: productStats[0].avgRating,
-      avgRiskScore: productStats[0].avgRiskScore,
-      totalRefundCost: refundStats[0].totalRefundCost,
+      totalProducts: Number(productStats[0].totalProducts || 0),
+      totalSold,
+      totalReturned,
+      avgReturnRate: Number(productStats[0].avgReturnRate || 0),
+      avgRating: Number(productStats[0].avgRating || 0),
+      avgRiskScore: Number(productStats[0].avgRiskScore || 0),
+      totalRefundCost: Number(refundStats[0].totalRefundCost || 0),
       suspiciousReviews: suspiciousCount,
       totalReviews: reviews.length,
-      totalTickets: ticketStats[0].totalTickets,
-      resolvedTickets: ticketStats[0].resolvedTickets
+      totalTickets: Number(ticketStats[0].totalTickets || 0),
+      resolvedTickets: Number(ticketStats[0].resolvedTickets || 0),
+      integrityScore,
+      refundPressure,
+      monthlyTrend
     });
   } catch (error) {
     // If anything goes wrong, send error message
@@ -255,7 +434,35 @@ router.get('/products', async (req, res) => {
     const [products] = await db.query(`
       SELECT * FROM products ORDER BY return_rate DESC
     `);
-    res.json(products);
+
+    const enrichedProducts = [];
+    for (const product of products) {
+      const [reviews] = await db.query(
+        'SELECT * FROM reviews WHERE product_id = ? ORDER BY review_date DESC',
+        [product.id]
+      );
+      const [returns] = await db.query(
+        'SELECT * FROM returns WHERE product_id = ? ORDER BY return_date DESC',
+        [product.id]
+      );
+      const [tickets] = await db.query(
+        'SELECT * FROM customer_support_tickets WHERE product_id = ? ORDER BY ticket_date DESC',
+        [product.id]
+      );
+
+      const rootCause = generateRootCauseAnalysis(product, reviews, returns, tickets);
+      const mainIssue = rootCause.issueBreakdown?.[0] || null;
+
+      enrichedProducts.push({
+        ...product,
+        mainIssue: mainIssue ? mainIssue.label : 'Under Analysis',
+        mainIssueIcon: mainIssue ? mainIssue.icon : '🔍',
+        rootCauseSummary: rootCause.summary,
+        rootCauseIssueShare: mainIssue ? mainIssue.percentage : 0
+      });
+    }
+
+    res.json(enrichedProducts);
   } catch (error) {
     console.error('Products list error:', error);
     res.status(500).json({ error: 'Failed to load products' });
@@ -302,9 +509,10 @@ router.get('/products/:id', async (req, res) => { console.log('API HIT FOR /prod
     // --- RUN AI ANALYSIS ---
 
     // 1. Analyze each review's sentiment and fake detection
+    const reviewContext = buildReviewMetadataContext(reviews, returns, tickets);
     const analyzedReviews = reviews.map(review => {
       const sentiment = analyzeSentiment(review.review_text);
-      const fakeCheck = detectFakeReview(review);
+      const fakeCheck = detectFakeReview(review, reviewContext[review.id]);
       return {
         ...review,
         sentiment,
@@ -317,16 +525,31 @@ router.get('/products/:id', async (req, res) => { console.log('API HIT FOR /prod
 
     // 3. Generate root cause analysis
     const rootCause = generateRootCauseAnalysis(product, reviews, returns, tickets);
+    const sellerActionPlan = generateSellerActionPlan(product, rootCause, riskScore);
+
+    const enrichedReturns = returns.map((ret) => {
+      if (ret.ai_extracted_issue) return ret;
+
+      const issues = extractIssues(`${ret.return_reason || ''} ${ret.detailed_notes || ''}`);
+      const topIssue = issues[0];
+
+      return {
+        ...ret,
+        ai_extracted_issue: topIssue?.label || 'Under Analysis',
+        ai_confidence: topIssue?.confidence ?? 0
+      };
+    });
 
     // Send everything
     res.json({
       product,
       reviews: analyzedReviews,
-      returns,
+      returns: enrichedReturns,
       tickets,
       aiAnalysis: {
         riskScore,
         rootCause,
+        sellerActionPlan,
         totalDataPoints: reviews.length + returns.length + tickets.length
       }
     });
@@ -351,10 +574,19 @@ router.get('/products/:id/fake-reviews', async (req, res) => {
       'SELECT * FROM reviews WHERE product_id = ? ORDER BY review_date DESC',
       [productId]
     );
+    const [returns] = await db.query(
+      'SELECT * FROM returns WHERE product_id = ? ORDER BY return_date DESC',
+      [productId]
+    );
+    const [tickets] = await db.query(
+      'SELECT * FROM customer_support_tickets WHERE product_id = ? ORDER BY ticket_date DESC',
+      [productId]
+    );
+    const reviewContext = buildReviewMetadataContext(reviews, returns, tickets);
 
     // Run fake detection on each review
     const analyzedReviews = reviews.map(review => {
-      const fakeResult = detectFakeReview(review);
+      const fakeResult = detectFakeReview(review, reviewContext[review.id]);
       const sentiment = analyzeSentiment(review.review_text);
       return {
         ...review,
@@ -459,23 +691,78 @@ router.get('/products/:id/recommendations', async (req, res) => {
       SELECT * FROM products 
       WHERE category = ? 
         AND id != ? 
-        AND name != ?
         AND return_rate < ?
-        AND LOWER(name) LIKE ?
-      ORDER BY avg_rating DESC, return_rate ASC
+        AND (
+          subcategory = ?
+          OR LOWER(name) LIKE ?
+        )
+      ORDER BY
+        CASE WHEN subcategory = ? THEN 0 ELSE 1 END,
+        avg_rating DESC,
+        return_rate ASC
       LIMIT 3
-    `, [product.category, productId, product.name, product.return_rate, likePhrase]);
+    `, [product.category, productId, product.return_rate, product.subcategory, likePhrase, product.subcategory]);
 
     let recommendations = alternatives;
 
+    if (recommendations.length === 0) {
+      const [fallbackAlternatives] = await db.query(`
+        SELECT * FROM products
+        WHERE category = ?
+          AND id != ?
+          AND return_rate < ?
+        ORDER BY avg_rating DESC, return_rate ASC
+        LIMIT 3
+      `, [product.category, productId, product.return_rate]);
+
+      recommendations = fallbackAlternatives;
+    }
+
+    const enrichedRecommendations = await Promise.all(recommendations.map(async (rec) => {
+        const [recReviews] = await db.query(
+          'SELECT * FROM reviews WHERE product_id = ? ORDER BY review_date DESC',
+          [rec.id]
+        );
+        const [recReturns] = await db.query(
+          'SELECT * FROM returns WHERE product_id = ? ORDER BY return_date DESC',
+          [rec.id]
+        );
+        const [recTickets] = await db.query(
+          'SELECT * FROM customer_support_tickets WHERE product_id = ? ORDER BY ticket_date DESC',
+          [rec.id]
+        );
+
+        const recRootCause = generateRootCauseAnalysis(rec, recReviews, recReturns, recTickets);
+        const topIssue = recRootCause.issueBreakdown?.[0] || null;
+        const totalDataPoints = recReviews.length + recReturns.length + recTickets.length;
+
+        return {
+          ...rec,
+          // Calculate how much better this alternative is
+          returnRateImprovement: product.return_rate - rec.return_rate,
+          ratingImprovement: rec.avg_rating - product.avg_rating,
+          sameSubcategory: rec.subcategory === product.subcategory,
+          similarityLabel: rec.subcategory === product.subcategory ? 'Closest match' : 'Same category',
+          comparisonPoints: [
+            `${Number(product.return_rate - rec.return_rate).toFixed(2)}% lower return rate`,
+            `${Number(rec.avg_rating - product.avg_rating).toFixed(1)} better rating`,
+            rec.subcategory === product.subcategory ? 'Same subcategory' : `Same category: ${rec.category}`
+          ],
+          rootCauseSummary: recRootCause.summary,
+          rootCauseTopIssue: topIssue ? topIssue.label : 'No major recurring issue detected',
+          rootCauseIssueShare: topIssue ? topIssue.percentage : 0,
+          totalDataPoints
+        };
+      }));
+
+    const recommendationsWithEvidence = enrichedRecommendations.filter((rec) => rec.totalDataPoints > 0);
+    const finalRecommendations = recommendationsWithEvidence.length > 0
+      ? recommendationsWithEvidence
+      : enrichedRecommendations;
+
     res.json({
       currentProduct: product,
-      recommendations: recommendations.map(rec => ({
-        ...rec,
-        // Calculate how much better this alternative is
-        returnRateImprovement: product.return_rate - rec.return_rate,
-        ratingImprovement: rec.avg_rating - product.avg_rating
-      }))
+      recommendations: finalRecommendations
     });
   } catch (error) {
     console.error('Recommendations error:', error);
@@ -736,7 +1023,7 @@ router.post('/analyze/reviews', (req, res) => {
 // ============================================================
 router.post('/analyze/fake-reviews', (req, res) => {
   try {
-    const { review_text, rating, verified_purchase } = req.body;
+    const { review_text, rating, verified_purchase, helpful_votes, customer_name, review_date } = req.body;
     
     if (!review_text) {
       return res.status(400).json({ error: 'review_text is required.' });
@@ -746,7 +1033,10 @@ router.post('/analyze/fake-reviews', (req, res) => {
     const reviewObj = {
       review_text,
       rating: rating || 5, // Default to 5 to simulate common fake review pattern if omitted
-      verified_purchase: verified_purchase !== undefined ? verified_purchase : true
+      verified_purchase: verified_purchase !== undefined ? verified_purchase : true,
+      helpful_votes: helpful_votes || 0,
+      customer_name: customer_name || '',
+      review_date: review_date || null
     };
 
     const fakeAnalysis = detectFakeReview(reviewObj);

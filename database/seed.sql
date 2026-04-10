@@ -14,6 +14,21 @@
 USE supply_chain;
 
 -- ============================================================
+-- USERS
+-- Sample accounts for login
+-- business01 / business123
+-- customer01 / customer123
+-- ============================================================
+INSERT INTO users (login_id, display_name, role, password_hash, password_salt) VALUES
+('business01', 'Operations Manager', 'business', 'c8725161b117774558069cf1e5fbcb2b12fb8e601067ccaad6b44fe4d782d11514bea8f35bc18fb99c51ad10ff5fb0aefe5cf8ffbe0b7efa1e29a6c0052d4573', 'business01-salt'),
+('customer01', 'Priya Customer', 'customer', 'b86cf529d122b30437c2945e775a48bd3c0318efff2f51980655400c3242439f0f94d929261e033ed4e00eb8a2f1000adc8d9234f6aa162e0a51b32c7fd4d796', 'customer01-salt')
+ON DUPLICATE KEY UPDATE
+display_name = VALUES(display_name),
+role = VALUES(role),
+password_hash = VALUES(password_hash),
+password_salt = VALUES(password_salt);
+
+-- ============================================================
 -- PRODUCTS (26 products across different categories)
 -- We're simulating an electronics + fashion + home store
 -- ============================================================

@@ -223,6 +223,8 @@ Important routes built so far:
 - `GET /api/dashboard/category-issues`
 - `GET /api/dashboard/trends`
 - `GET /api/dashboard/issue-distribution`
+- `GET /api/dashboard/action-summary`
+- `GET /api/dashboard/alerts`
 - `GET /api/products`
 - `GET /api/products/:id`
 - `GET /api/products/:id/fake-reviews`
@@ -234,6 +236,7 @@ What these routes give us:
 - health checks
 - dashboard numbers
 - charts data
+- alert and action-priority summaries
 - product list
 - one-product deep analysis
 - suspicious review analysis
@@ -353,6 +356,18 @@ Purpose:
 - gives improvement suggestions for the business
 - gives advice for customers
 
+#### 7. Seller action planning
+
+Function:
+
+- `generateSellerActionPlan(product, rootCause, riskScore)`
+
+Purpose:
+
+- turns root-cause findings into business-owner actions
+- assigns a priority, owner, impact, and next review window
+- powers the seller action section in the product detail page
+
 ## 6. Frontend work we completed
 
 The frontend lives inside `frontend/`.
@@ -373,7 +388,7 @@ This file sets up the frontend dev server.
 Important setup done here:
 
 - frontend runs on port `5173`
-- requests starting with `/api` are automatically sent to backend port `5000`
+- requests starting with `/api` are automatically sent to the backend port declared in `backend/.env` (default fallback `5000`)
 
 This is called a proxy and it helps frontend and backend talk smoothly during development.
 
@@ -508,6 +523,7 @@ It shows:
 - product information
 - risk gauge
 - AI root-cause analysis
+- seller action plan
 - suspicious vs genuine reviews
 - returns history
 - support tickets
@@ -561,6 +577,11 @@ Expected variables:
 - `PORT`
 
 This lets the backend connect to MySQL without hardcoding credentials in source code.
+
+Important note:
+
+- `backend/.env` is local-only and should not be committed
+- `.gitignore` is used to exclude local env files, build output, and `node_modules`
 
 ## 10. How the full app works together
 

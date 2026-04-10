@@ -11,14 +11,17 @@
 // ============================================================
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard,  // Dashboard icon
   Package,          // Products icon  
   AlertTriangle,    // Returns icon
   Shield,           // AI section icon
-  Activity          // Logo pulse icon
+  Activity,
+  LogOut,
+  UserRound
 } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 // ---- Sidebar Styles (scoped to this component) ----
 const styles = {
@@ -50,7 +53,7 @@ const styles = {
     width: '40px',
     height: '40px',
     borderRadius: '10px',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    background: 'linear-gradient(135deg, #b77943, #d2a679)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -101,8 +104,8 @@ const styles = {
 
   // --- Nav link - active state (current page) ---
   navLinkActive: {
-    background: 'rgba(99, 102, 241, 0.1)',
-    color: '#6366f1',
+    background: 'rgba(183, 121, 67, 0.14)',
+    color: '#9a6233',
   },
 
   // --- Footer at bottom ---
@@ -126,6 +129,16 @@ const styles = {
 };
 
 function Sidebar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const isBusiness = user?.role === 'business';
+
+  function handleLogout() {
+    logout();
+    navigate('/login');
+  }
+
   return (
     <aside style={styles.sidebar}>
       {/* ---- LOGO ---- */}
@@ -136,7 +149,7 @@ function Sidebar() {
           </div>
           <div>
             <div style={styles.logoText}>Returns AI</div>
-            <div style={styles.logoSubtext}>Intelligence Dashboard</div>
+            <div style={styles.logoSubtext}>{isBusiness ? 'Business Intelligence' : 'Customer Insights'}</div>
           </div>
         </div>
       </div>
@@ -145,18 +158,19 @@ function Sidebar() {
       <nav style={styles.nav}>
         <div style={styles.navLabel}>Main Menu</div>
 
-        {/* NavLink automatically adds "active" class when URL matches */}
-        <NavLink
-          to="/"
-          end   /* "end" means exact match only (/ but not /products) */
-          style={({ isActive }) => ({
-            ...styles.navLink,
-            ...(isActive ? styles.navLinkActive : {}),
-          })}
-        >
-          <LayoutDashboard size={18} />
-          Dashboard
-        </NavLink>
+        {isBusiness && (
+          <NavLink
+            to="/dashboard"
+            end
+            style={({ isActive }) => ({
+              ...styles.navLink,
+              ...(isActive ? styles.navLinkActive : {}),
+            })}
+          >
+            <LayoutDashboard size={18} />
+            Dashboard
+          </NavLink>
+        )}
 
         <NavLink
           to="/products"
@@ -169,35 +183,51 @@ function Sidebar() {
           Products
         </NavLink>
 
-        <div style={styles.navLabel}>AI Features</div>
+        {isBusiness && (
+          <>
+            <div style={styles.navLabel}>AI Features</div>
 
-        <NavLink
-          to="/risk-analysis"
-          style={({ isActive }) => ({
-            ...styles.navLink,
-            ...(isActive ? styles.navLinkActive : {}),
-          })}
-        >
-          <AlertTriangle size={18} />
-          Risk Analysis
-        </NavLink>
+            <NavLink
+              to="/risk-analysis"
+              style={({ isActive }) => ({
+                ...styles.navLink,
+                ...(isActive ? styles.navLinkActive : {}),
+              })}
+            >
+              <AlertTriangle size={18} />
+              Risk Analysis
+            </NavLink>
 
-        <NavLink
-          to="/fake-review-detector"
-          style={({ isActive }) => ({
-            ...styles.navLink,
-            ...(isActive ? styles.navLinkActive : {}),
-          })}
-        >
-          <Shield size={18} />
-          Fake Review Detector
-        </NavLink>
+            <NavLink
+              to="/fake-review-detector"
+              style={({ isActive }) => ({
+                ...styles.navLink,
+                ...(isActive ? styles.navLinkActive : {}),
+              })}
+            >
+              <Shield size={18} />
+              Fake Review Detector
+            </NavLink>
+          </>
+        )}
       </nav>
 
       {/* ---- FOOTER — AI Engine Status ---- */}
       <div style={styles.footer}>
-        <span style={styles.statusDot}></span>
-        <span style={styles.statusText}>AI Engine Active</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <UserRound size={14} color="var(--text-secondary)" />
+          <span style={styles.statusText}>{user?.name} • {isBusiness ? 'Business' : 'Customer'}</span>
+        </div>
+        {isBusiness && (
+          <div style={{ marginBottom: '12px' }}>
+            <span style={styles.statusDot}></span>
+            <span style={styles.statusText}>AI Engine Active</span>
+          </div>
+        )}
+        <button type="button" style={{ ...styles.navLink, width: '100%', border: 'none', background: 'transparent', paddingLeft: 0, paddingRight: 0, marginBottom: 0 }} onClick={handleLogout}>
+          <LogOut size={16} />
+          Sign Out
+        </button>
       </div>
     </aside>
   );

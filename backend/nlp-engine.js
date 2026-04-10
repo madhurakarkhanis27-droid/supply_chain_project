@@ -367,20 +367,33 @@ function analyzeSentiment(text) {
  * @param {object} review - Review object with text, rating, verified_purchase, etc.
  * @returns {object} - { isSuspicious, suspicionScore, reasons }
  */
-function detectFakeReview(review) {
-  const reasons = [];     // List of reasons why we think it's fake
+function detectFakeReview(review, metadata = {}) {
+  const reasons = [];     // Signals that increased suspicion
+  const trustSignals = []; // Signals that reduced suspicion
   let suspicionScore = 0; // 0 = genuine, 1 = definitely fake
+  let strongFraudSignals = 0;
+  let weakFraudSignals = 0;
 
-  const text = (review.review_text || '').toLowerCase();
-  const words = text.split(/\s+/);
+  const text = (review.review_text || '').toLowerCase().trim();
+  const words = text ? text.split(/\s+/).filter(Boolean) : [];
   const wordCount = words.length;
+  const sentiment = analyzeSentiment(review.review_text || '');
+  const detectedIssues = extractIssues(review.review_text || '');
+
+  const complaintWords = [
+    'bad', 'pathetic', 'broken', 'defective', 'poor', 'refund', 'returned',
+    'waste', 'not working', 'stopped working', 'terrible', 'useless',
+    'damaged', 'flimsy', 'cracked', 'ripped', 'hot', 'slow'
+  ];
+  const hasComplaintLanguage = complaintWords.some((phrase) => text.includes(phrase));
 
   // --- Check 1: Excessive exclamation marks ---
   // Real reviews rarely have more than 1-2 exclamation marks
   const exclamationCount = (text.match(/!/g) || []).length;
   if (exclamationCount >= 3) {
-    suspicionScore += 0.15;
+    suspicionScore += 0.08;
     reasons.push(`Excessive exclamation marks (${exclamationCount} found)`);
+    weakFraudSignals++;
   }
 
   // --- Check 2: Overly promotional language ---
@@ -397,6 +410,7 @@ function detectFakeReview(review) {
   if (promoCount >= 2) {
     suspicionScore += 0.25;
     reasons.push(`Overly promotional language (${promoCount} promotional phrases)`);
+    strongFraudSignals++;
   }
 
   // --- Check 3: Repetitive superlatives ---
@@ -411,10 +425,12 @@ function detectFakeReview(review) {
   if (superlativeCount >= 3) {
     suspicionScore += 0.20;
     reasons.push(`Excessive superlatives (${superlativeCount} superlative words used)`);
+    strongFraudSignals++;
   }
 
   // --- Check 4: Lack of specific details ---
-  // Real reviews mention specific features; fake ones are generic
+  // Low-information positive reviews are mildly suspicious.
+  // We avoid over-penalizing short negative complaints.
   const specificWords = ['battery', 'screen', 'size', 'color', 'weight', 'sound',
     'camera', 'speed', 'fit', 'fabric', 'material', 'feature', 'setting',
     'button', 'port', 'strap', 'sole', 'stitching', 'pocket'];
@@ -422,23 +438,27 @@ function detectFakeReview(review) {
   for (const word of specificWords) {
     if (text.includes(word)) specificCount++;
   }
-  if (specificCount === 0 && wordCount > 10) {
-    suspicionScore += 0.15;
+  if (specificCount === 0 && wordCount > 18 && review.rating >= 4 && sentiment.score >= 0) {
+    suspicionScore += 0.08;
     reasons.push('No specific product details mentioned');
+    weakFraudSignals++;
   }
 
   // --- Check 5: Very short 5-star review ---
-  // Genuine detailed reviews tend to be longer
-  if (review.rating === 5 && wordCount < 20) {
-    suspicionScore += 0.10;
+  if (review.rating === 5 && wordCount > 0 && wordCount < 12) {
+    suspicionScore += 0.12;
     reasons.push('Very short review with maximum rating');
+    weakFraudSignals++;
   }
 
   // --- Check 6: Non-verified purchase ---
-  // Reviews from non-buyers are more likely fake
   if (!review.verified_purchase) {
-    suspicionScore += 0.15;
+    suspicionScore += review.rating >= 4 ? 0.12 : 0.08;
     reasons.push('Not a verified purchase');
+    weakFraudSignals++;
+  } else {
+    suspicionScore -= 0.08;
+    trustSignals.push('Verified purchase');
   }
 
   // --- Check 7: Generic customer name ---
@@ -448,24 +468,27 @@ function detectFakeReview(review) {
   const nameLower = (review.customer_name || '').toLowerCase();
   for (const generic of genericNames) {
     if (nameLower.includes(generic)) {
-      suspicionScore += 0.10;
+      suspicionScore += 0.08;
       reasons.push(`Generic/suspicious reviewer name: "${review.customer_name}"`);
+      weakFraudSignals++;
       break;
     }
   }
 
   // --- Check 8: Low helpful votes on positive review ---
-  // If nobody found a glowing review helpful, it might be fake
   if (review.rating >= 4 && review.helpful_votes <= 1) {
-    suspicionScore += 0.05;
+    suspicionScore += 0.04;
     reasons.push('Low helpful votes despite positive review');
+    weakFraudSignals++;
+  } else if (Number(review.helpful_votes || 0) >= 5) {
+    suspicionScore -= 0.05;
+    trustSignals.push('Helpful votes support review credibility');
   }
 
   // --- Check 9: Repetitive word patterns ---
-  // "Amazing product amazing quality amazing everything"
   const wordFreq = {};
   for (const word of words) {
-    if (word.length > 3) { // Only count meaningful words
+    if (word.length > 3) {
       wordFreq[word] = (wordFreq[word] || 0) + 1;
     }
   }
@@ -473,21 +496,87 @@ function detectFakeReview(review) {
   if (repeatedWords >= 2) {
     suspicionScore += 0.15;
     reasons.push('Repetitive word patterns detected');
+    strongFraudSignals++;
+  }
+
+  // --- Check 10: Rating / sentiment mismatch ---
+  const ratingValue = Number(review.rating || 0);
+  const positiveRatingWithNegativeTone = ratingValue >= 4 && sentiment.score <= -0.35;
+  const negativeRatingWithStrongPraise = ratingValue <= 2 && sentiment.score >= 0.35;
+  if (positiveRatingWithNegativeTone || negativeRatingWithStrongPraise) {
+    suspicionScore += 0.18;
+    reasons.push('Rating does not match review sentiment');
+    strongFraudSignals++;
+  }
+
+  // --- Check 11: Metadata-based risk signals ---
+  if (metadata.duplicateTextCount > 1) {
+    suspicionScore += 0.28;
+    reasons.push(`Review text is duplicated ${metadata.duplicateTextCount} times for this product`);
+    strongFraudSignals++;
+  }
+
+  if (metadata.burstReviewCount >= 3) {
+    suspicionScore += 0.18;
+    reasons.push(`Part of a burst of ${metadata.burstReviewCount} reviews in a short window`);
+    strongFraudSignals++;
+  }
+
+  if (metadata.reviewerReviewCount > 1) {
+    suspicionScore += 0.15;
+    reasons.push(`Reviewer appears ${metadata.reviewerReviewCount} times for this product`);
+    strongFraudSignals++;
+  }
+
+  // --- Check 12: Metadata-based trust signals ---
+  if (detectedIssues.length > 0) {
+    suspicionScore -= 0.08;
+    trustSignals.push('Mentions a plausible product issue');
+  }
+
+  if (ratingValue <= 2 && hasComplaintLanguage) {
+    suspicionScore -= 0.12;
+    trustSignals.push('Short negative complaint matches genuine customer behavior');
+  }
+
+  if (metadata.hasRelatedReturn) {
+    suspicionScore -= 0.20;
+    trustSignals.push('Customer also has a related return record');
+  }
+
+  if (metadata.hasSupportTicket) {
+    suspicionScore -= 0.12;
+    trustSignals.push('Customer also opened a support ticket');
+  }
+
+  if (metadata.daysSinceFirstReviewForProduct >= 30 && ratingValue <= 3) {
+    suspicionScore -= 0.04;
+    trustSignals.push('Complaint appears in a mature review stream, not an early burst');
   }
 
   // Cap score at 1.0
-  suspicionScore = Math.min(suspicionScore, 1.0);
+  suspicionScore = Math.max(0, Math.min(suspicionScore, 1.0));
   suspicionScore = Math.round(suspicionScore * 100) / 100;
 
-  // Determine if suspicious (threshold: 0.4)
-  const isSuspicious = suspicionScore >= 0.4;
+  let classification = 'genuine';
+  if (suspicionScore >= 0.6 && (strongFraudSignals >= 1 || weakFraudSignals >= 3)) {
+    classification = 'suspicious';
+  } else if (suspicionScore >= 0.35) {
+    classification = 'needs_review';
+  }
+
+  const isSuspicious = classification === 'suspicious';
+  const severity = isSuspicious ? 'High' : classification === 'needs_review' ? 'Medium' : 'Low';
 
   return {
     isSuspicious,
+    classification,
     suspicionScore,
     reasons,
-    // Severity level for display
-    severity: suspicionScore >= 0.7 ? 'High' : suspicionScore >= 0.4 ? 'Medium' : 'Low'
+    trustSignals,
+    strongFraudSignals,
+    weakFraudSignals,
+    severity
   };
 }
 
@@ -827,6 +916,92 @@ function generateRecommendations(issues, product) {
   };
 }
 
+function getIssueOwner(issueKey) {
+  switch (issueKey) {
+    case 'size_mismatch':
+    case 'color_mismatch':
+    case 'misleading_specs':
+      return 'Catalog Team';
+    case 'quality_poor':
+    case 'defective':
+    case 'material_quality':
+      return 'Quality Team';
+    case 'software_issue':
+    case 'connectivity_issue':
+    case 'sensor_inaccurate':
+      return 'Product Engineering';
+    case 'shipping_damage':
+      return 'Fulfillment Ops';
+    case 'safety_concern':
+      return 'Risk & Compliance';
+    default:
+      return 'Category Team';
+  }
+}
+
+function getIssuePriority(issue, riskScore) {
+  if (issue.issue === 'safety_concern') {
+    return { priority: 'urgent', impact: 'Critical', whyNow: 'Safety-related complaints need immediate review before more returns stack up.' };
+  }
+
+  if ((issue.percentage || 0) >= 35 || (riskScore?.score || 0) >= 70) {
+    return { priority: 'urgent', impact: 'High', whyNow: 'This issue is driving a meaningful share of returns and is already affecting product trust.' };
+  }
+
+  if ((issue.percentage || 0) >= 20 || (riskScore?.score || 0) >= 40) {
+    return { priority: 'soon', impact: 'Medium', whyNow: 'This pattern is established enough that fixing it should reduce near-term refund pressure.' };
+  }
+
+  return { priority: 'monitor', impact: 'Low', whyNow: 'This signal is emerging, so it should be monitored before it becomes a larger returns driver.' };
+}
+
+function generateSellerActionPlan(product, rootCause, riskScore) {
+  const issues = rootCause?.issueBreakdown || [];
+
+  if (issues.length === 0) {
+    return {
+      summary: `We do not have enough repeated issue evidence yet to create a seller action plan for ${product.name}.`,
+      nextReviewWindow: 'After the next 25 feedback events',
+      actions: []
+    };
+  }
+
+  const nextReviewWindow = (riskScore?.score || 0) >= 70
+    ? 'Within 72 hours'
+    : (riskScore?.score || 0) >= 40
+      ? 'Within 7 days'
+      : 'This month';
+
+  const actions = issues.slice(0, 3).map((issue, index) => {
+    const businessRecommendations = generateRecommendations([issue], product).forBusiness;
+    const { priority, impact, whyNow } = getIssuePriority(issue, riskScore);
+    const owner = getIssueOwner(issue.issue);
+
+    return {
+      id: `${product.id}-${issue.issue}-${index}`,
+      title: `Reduce ${issue.label.toLowerCase()} returns`,
+      evidence: `${issue.percentage}% of recurring complaints point to ${issue.label.toLowerCase()} across ${issue.dataSources.join(', ')} feedback.`,
+      priority,
+      impact,
+      owner,
+      whyNow,
+      actions: businessRecommendations.length > 0
+        ? businessRecommendations.slice(0, 3)
+        : [
+            `Review recent ${issue.label.toLowerCase()} cases for ${product.name}.`,
+            'Sample failed units and compare them with the product listing promise.',
+            `Close the loop with the ${owner.toLowerCase()} before the next review window.`
+          ]
+    };
+  });
+
+  return {
+    summary: `The strongest opportunity is to address ${issues[0].label.toLowerCase()} first, then work through the next issue clusters in order of return impact.`,
+    nextReviewWindow,
+    actions
+  };
+}
+
 
 // ============================================================
 // EXPORT everything so other files can use these functions
@@ -837,5 +1012,7 @@ module.exports = {
   detectFakeReview,
   calculateRiskScore,
   generateRootCauseAnalysis,
+  generateRecommendations,
+  generateSellerActionPlan,
   ISSUE_KEYWORDS
 };

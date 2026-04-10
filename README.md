@@ -47,7 +47,7 @@ npm run dev
 
 Optional backend environment setup:
 ```bash
-copy .env.example .env
+cp .env.example .env
 ```
 
 Set these values in `backend/.env` or in your shell before starting:
@@ -58,10 +58,16 @@ Set these values in `backend/.env` or in your shell before starting:
 - `DB_NAME`
 - `PORT`
 
+The frontend dev server reads the backend port from `backend/.env` and proxies `/api` requests to that target automatically. If you change `PORT`, restart both the backend and frontend dev servers.
+
 ### Database
 1. Import `database/schema.sql` into your MySQL server
 2. Optionally run `database/seed.sql` for sample data
 
 ### Health Checks
-- API: `http://localhost:5000/api/health`
-- Database: `http://localhost:5000/api/health/db`
+- API: `http://localhost:<PORT>/api/health`
+- Database: `http://localhost:<PORT>/api/health/db`
+
+Additional dashboard endpoints:
+- `GET /api/dashboard/action-summary`
+- `GET /api/dashboard/alerts`

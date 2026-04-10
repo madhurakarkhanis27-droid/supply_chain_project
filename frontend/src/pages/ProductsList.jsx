@@ -371,6 +371,7 @@ function ProductsList() {
                   Sold {sortBy === 'total_sold' && (sortOrder === 'asc' ? '↑' : '↓')}
                 </th>
                 <th>Main Issue</th>
+                <th>Root Cause Analysis</th>
               </tr>
             </thead>
             <tbody>
@@ -427,6 +428,18 @@ function ProductsList() {
                       <span className="badge badge-info">
                         {product.mainIssueIcon} {product.mainIssue}
                       </span>
+                    </td>
+                    <td style={{ maxWidth: '320px' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
+                        {product.rootCauseSummary || 'No recurring root-cause pattern detected yet.'}
+                      </div>
+                      {product.rootCauseIssueShare ? (
+                        <div style={{ marginTop: '6px' }}>
+                          <span className="badge badge-neutral">
+                            {product.rootCauseIssueShare}% of issue mentions
+                          </span>
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 );
