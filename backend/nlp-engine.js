@@ -115,6 +115,20 @@ const ISSUE_KEYWORDS = {
   }
 };
 
+const ISSUE_REASON_PATTERNS = [
+  { issue: 'color_mismatch', patterns: ['color mismatch', 'wrong color', 'different color', 'shade mismatch'] },
+  { issue: 'size_mismatch', patterns: ['wrong size', 'size issue', 'wrong fit', 'fit issue', 'too small', 'too large', 'not comfortable'] },
+  { issue: 'connectivity_issue', patterns: ['connectivity issue', 'connection issue', 'pairing issue', 'bluetooth issue', 'wifi issue'] },
+  { issue: 'software_issue', patterns: ['app issue', 'app issues', 'software issue', 'software bug', 'firmware issue'] },
+  { issue: 'safety_concern', patterns: ['safety concern', 'skin reaction', 'adverse reaction', 'allergic reaction', 'unsafe'] },
+  { issue: 'shipping_damage', patterns: ['damaged in transit', 'damaged delivery', 'shipping damage', 'packaging issue'] },
+  { issue: 'misleading_specs', patterns: ['not as described', 'not as expected', 'fake product', 'incomplete/wrong'] },
+  { issue: 'defective', patterns: ['product malfunction', 'defective product', 'defective', 'damaged product'] },
+  { issue: 'quality_poor', patterns: ['quality issue', 'poor quality'] },
+];
+
+const GENERIC_ISSUE_KEYS = new Set(['quality_poor', 'defective']);
+
 /**
  * extractIssues(text)
  * 
@@ -192,6 +206,23 @@ function getIssueMetadata(issueKey) {
   };
 }
 
+function inferIssueFromReason(returnReason = '') {
+  const lowerReason = String(returnReason).toLowerCase().trim();
+  if (!lowerReason) return null;
+
+  const matchedRule = ISSUE_REASON_PATTERNS.find((rule) =>
+    rule.patterns.some((pattern) => lowerReason.includes(pattern))
+  );
+
+  return matchedRule ? getIssueMetadata(matchedRule.issue) : null;
+}
+
+function inferPrimaryIssueFromText(text = '') {
+  const issues = extractIssues(text);
+  const specificIssue = issues.find((issue) => !GENERIC_ISSUE_KEYS.has(issue.issue));
+  return specificIssue || issues[0] || null;
+}
+
 function addIssueCount(issueCounts, issue, source) {
   if (!issue || !issue.issue) return;
 
@@ -211,27 +242,35 @@ function addIssueCount(issueCounts, issue, source) {
 function getFallbackIssuesFromReturn(ret) {
   const fallbackIssues = [];
 
+  const inferredFromReason = inferIssueFromReason(ret.return_reason || '');
+  if (inferredFromReason) {
+    fallbackIssues.push(inferredFromReason);
+  }
+
   const aiIssue = getIssueMetadata(ret.ai_extracted_issue);
-  if (aiIssue) {
+  if (aiIssue && !fallbackIssues.some((issue) => issue.issue === aiIssue.issue)) {
     fallbackIssues.push(aiIssue);
   }
 
   if (fallbackIssues.length === 0) {
-    const relaxed = extractIssuesWithThreshold(`${ret.return_reason || ''} ${ret.detailed_notes || ''}`, 1);
-    if (relaxed.length > 0) fallbackIssues.push(relaxed[0]);
+    const relaxed = inferPrimaryIssueFromText(`${ret.return_reason || ''} ${ret.detailed_notes || ''}`);
+    if (relaxed) fallbackIssues.push(relaxed);
   }
 
   return fallbackIssues;
 }
 
 function getFallbackIssuesFromReview(review) {
-  const relaxed = extractIssuesWithThreshold(review.review_text, 1);
-  return relaxed.length > 0 ? [relaxed[0]] : [];
+  const relaxed = inferPrimaryIssueFromText(review.review_text || '');
+  return relaxed ? [relaxed] : [];
 }
 
 function getFallbackIssuesFromTicket(ticket) {
-  const relaxed = extractIssuesWithThreshold(`${ticket.issue_type || ''} ${ticket.message || ''}`, 1);
-  return relaxed.length > 0 ? [relaxed[0]] : [];
+  const inferredFromReason = inferIssueFromReason(ticket.issue_type || '');
+  if (inferredFromReason) return [inferredFromReason];
+
+  const relaxed = inferPrimaryIssueFromText(`${ticket.issue_type || ''} ${ticket.message || ''}`);
+  return relaxed ? [relaxed] : [];
 }
 
 
@@ -755,9 +794,12 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
   if (returns) {
     for (const ret of returns) {
       allTexts.push(ret.detailed_notes);
-      let issues = extractIssues(ret.detailed_notes);
-      if (issues.length === 0) {
-        issues = getFallbackIssuesFromReturn(ret);
+      let issues = [];
+      const primaryReturnIssue = getFallbackIssuesFromReturn(ret);
+      if (primaryReturnIssue.length > 0) {
+        issues = primaryReturnIssue;
+      } else {
+        issues = extractIssues(ret.detailed_notes);
       }
       for (const issue of issues) {
         addIssueCount(issueCounts, issue, 'return');
@@ -770,9 +812,12 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
     const negativeReviews = reviews.filter(r => r.rating <= 3);
     for (const rev of negativeReviews) {
       allTexts.push(rev.review_text);
-      let issues = extractIssues(rev.review_text);
-      if (issues.length === 0 && rev.rating <= 2) {
-        issues = getFallbackIssuesFromReview(rev);
+      let issues = [];
+      const reviewFallback = getFallbackIssuesFromReview(rev);
+      if (reviewFallback.length > 0) {
+        issues = reviewFallback;
+      } else {
+        issues = extractIssues(rev.review_text);
       }
       for (const issue of issues) {
         addIssueCount(issueCounts, issue, 'review');
@@ -784,9 +829,12 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
   if (tickets) {
     for (const ticket of tickets) {
       allTexts.push(ticket.message);
-      let issues = extractIssues(ticket.message);
-      if (issues.length === 0) {
-        issues = getFallbackIssuesFromTicket(ticket);
+      let issues = [];
+      const ticketFallback = getFallbackIssuesFromTicket(ticket);
+      if (ticketFallback.length > 0) {
+        issues = ticketFallback;
+      } else {
+        issues = extractIssues(ticket.message);
       }
       for (const issue of issues) {
         addIssueCount(issueCounts, issue, 'support');

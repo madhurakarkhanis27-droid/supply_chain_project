@@ -28,8 +28,142 @@ const {
   detectFakeReview, 
   calculateRiskScore, 
   generateRootCauseAnalysis,
-  generateSellerActionPlan
+  generateSellerActionPlan,
+  ISSUE_KEYWORDS
 } = require('./nlp-engine');
+
+function getIssueLabelFromKey(issueKey) {
+  return ISSUE_KEYWORDS[issueKey]?.label || null;
+}
+
+const ISSUE_REASON_PATTERNS = [
+  { issue: 'color_mismatch', patterns: ['color mismatch', 'wrong color', 'different color', 'shade mismatch'] },
+  { issue: 'size_mismatch', patterns: ['wrong size', 'size issue', 'wrong fit', 'fit issue', 'too small', 'too large', 'not comfortable'] },
+  { issue: 'connectivity_issue', patterns: ['connectivity issue', 'connection issue', 'pairing issue', 'bluetooth issue', 'wifi issue'] },
+  { issue: 'software_issue', patterns: ['app issue', 'app issues', 'software issue', 'software bug', 'firmware issue'] },
+  { issue: 'safety_concern', patterns: ['safety concern', 'skin reaction', 'adverse reaction', 'allergic reaction', 'unsafe'] },
+  { issue: 'shipping_damage', patterns: ['damaged in transit', 'damaged delivery', 'shipping damage', 'packaging issue'] },
+  { issue: 'misleading_specs', patterns: ['not as described', 'not as expected', 'fake product', 'incomplete/wrong'] },
+  { issue: 'defective', patterns: ['product malfunction', 'defective product', 'defective', 'damaged product'] },
+  { issue: 'quality_poor', patterns: ['quality issue', 'poor quality'] },
+];
+
+const GENERIC_ISSUE_KEYS = new Set(['quality_poor', 'defective']);
+
+function getIssueMetadata(issueKey) {
+  const issue = ISSUE_KEYWORDS[issueKey];
+  if (!issue) return null;
+  return {
+    issue: issueKey,
+    label: issue.label,
+    icon: issue.icon,
+  };
+}
+
+function inferIssueFromReason(returnReason = '') {
+  const lowerReason = String(returnReason).toLowerCase().trim();
+  if (!lowerReason) return null;
+
+  const matchedRule = ISSUE_REASON_PATTERNS.find((rule) =>
+    rule.patterns.some((pattern) => lowerReason.includes(pattern))
+  );
+
+  return matchedRule ? getIssueMetadata(matchedRule.issue) : null;
+}
+
+function summarizeReturnIssues(returns = []) {
+  const issueCounts = {};
+
+  for (const ret of returns) {
+    const primaryIssue = inferPrimaryIssue(ret);
+    if (!primaryIssue) continue;
+    issueCounts[primaryIssue.label] = (issueCounts[primaryIssue.label] || 0) + 1;
+  }
+
+  const sortedIssues = Object.entries(issueCounts).sort((a, b) => b[1] - a[1]);
+  const [topIssue = 'Under Analysis', topIssueCount = 0] = sortedIssues[0] || [];
+
+  return {
+    issueCounts,
+    topIssue,
+    topIssueCount
+  };
+}
+
+function inferPrimaryIssue(returnRecord = {}) {
+  const reasonIssue = inferIssueFromReason(returnRecord.return_reason);
+  if (reasonIssue && !GENERIC_ISSUE_KEYS.has(reasonIssue.issue)) {
+    return reasonIssue;
+  }
+
+  const storedKey = returnRecord.ai_extracted_issue;
+  const storedIssue = getIssueMetadata(storedKey);
+  if (storedIssue && !GENERIC_ISSUE_KEYS.has(storedIssue.issue)) {
+    return storedIssue;
+  }
+
+  const issues = extractIssues(`${returnRecord.return_reason || ''} ${returnRecord.detailed_notes || ''}`);
+  const specificExtractedIssue = issues.find((issue) => !GENERIC_ISSUE_KEYS.has(issue.issue));
+  if (specificExtractedIssue) return specificExtractedIssue;
+
+  if (reasonIssue) {
+    return reasonIssue;
+  }
+
+  if (storedIssue) {
+    return storedIssue;
+  }
+
+  if (issues.length > 0) return issues[0];
+
+  const relaxedText = `${returnRecord.return_reason || ''} ${returnRecord.detailed_notes || ''}`.toLowerCase();
+  for (const [issueKey, issueData] of Object.entries(ISSUE_KEYWORDS)) {
+    const matched = issueData.keywords.filter((keyword) => relaxedText.includes(keyword.toLowerCase()));
+    if (matched.length > 0) {
+      return {
+        issue: issueKey,
+        label: issueData.label,
+        icon: issueData.icon,
+      };
+    }
+  }
+
+  return null;
+}
+
+function getIssueIcon(issueLabel) {
+  const matchedEntry = Object.values(ISSUE_KEYWORDS).find((issue) => issue.label === issueLabel);
+  return matchedEntry?.icon || '🔍';
+}
+
+function buildProductIssueSummary(productName, returns = []) {
+  const { issueCounts, topIssue, topIssueCount } = summarizeReturnIssues(returns);
+  const sortedIssues = Object.entries(issueCounts).sort((a, b) => b[1] - a[1]);
+
+  if (sortedIssues.length === 0) {
+    return {
+      mainIssue: 'Under Analysis',
+      mainIssueIcon: '🔍',
+      rootCauseSummary: `We do not have enough return evidence yet to identify a recurring issue for ${productName}.`,
+      rootCauseIssueShare: 0,
+    };
+  }
+
+  const totalIssues = sortedIssues.reduce((sum, [, count]) => sum + count, 0);
+  const mainIssueShare = totalIssues > 0 ? Math.round((topIssueCount / totalIssues) * 100) : 0;
+  const secondaryIssue = sortedIssues[1] || null;
+
+  const summary = secondaryIssue
+    ? `${productName} is mainly seeing ${topIssue.toLowerCase()} returns (${mainIssueShare}%), with ${secondaryIssue[0].toLowerCase()} appearing as the next pattern.`
+    : `${productName} is mainly seeing returns driven by ${topIssue.toLowerCase()} (${mainIssueShare}% of identified return issues).`;
+
+  return {
+    mainIssue: topIssue,
+    mainIssueIcon: getIssueIcon(topIssue),
+    rootCauseSummary: summary,
+    rootCauseIssueShare: mainIssueShare,
+  };
+}
 
 function normalizeReviewText(text = '') {
   return String(text)
@@ -327,19 +461,15 @@ router.get('/dashboard/top-returned', async (req, res) => {
     const enrichedProducts = [];
     for (const product of products) {
       const [returns] = await db.query(
-        `SELECT detailed_notes FROM returns WHERE product_id = ?`,
+        `SELECT return_reason, detailed_notes, ai_extracted_issue FROM returns WHERE product_id = ?`,
         [product.id]
       );
-      
-      // Combine all return notes and extract main issue
-      const allNotes = returns.map(r => r.detailed_notes).join(' ');
-      const issues = extractIssues(allNotes);
-      const mainIssue = issues.length > 0 ? issues[0] : null;
+      const { topIssue } = summarizeReturnIssues(returns);
 
       enrichedProducts.push({
         ...product,
-        mainIssue: mainIssue ? mainIssue.label : 'Under Analysis',
-        mainIssueIcon: mainIssue ? mainIssue.icon : '🔍'
+        mainIssue: topIssue,
+        mainIssueIcon: topIssue === 'Under Analysis' ? '🔍' : '⚠️'
       });
     }
 
@@ -451,14 +581,15 @@ router.get('/products', async (req, res) => {
       );
 
       const rootCause = generateRootCauseAnalysis(product, reviews, returns, tickets);
-      const mainIssue = rootCause.issueBreakdown?.[0] || null;
+      const issueSummary = buildProductIssueSummary(product.name, returns);
 
       enrichedProducts.push({
         ...product,
-        mainIssue: mainIssue ? mainIssue.label : 'Under Analysis',
-        mainIssueIcon: mainIssue ? mainIssue.icon : '🔍',
-        rootCauseSummary: rootCause.summary,
-        rootCauseIssueShare: mainIssue ? mainIssue.percentage : 0
+        mainIssue: issueSummary.mainIssue,
+        mainIssueIcon: issueSummary.mainIssueIcon,
+        rootCauseSummary: issueSummary.rootCauseSummary,
+        rootCauseIssueShare: issueSummary.rootCauseIssueShare,
+        detailedRootCauseSummary: rootCause.summary
       });
     }
 
@@ -528,15 +659,14 @@ router.get('/products/:id', async (req, res) => { console.log('API HIT FOR /prod
     const sellerActionPlan = generateSellerActionPlan(product, rootCause, riskScore);
 
     const enrichedReturns = returns.map((ret) => {
-      if (ret.ai_extracted_issue) return ret;
-
-      const issues = extractIssues(`${ret.return_reason || ''} ${ret.detailed_notes || ''}`);
-      const topIssue = issues[0];
+      const primaryIssue = inferPrimaryIssue(ret);
 
       return {
         ...ret,
-        ai_extracted_issue: topIssue?.label || 'Under Analysis',
-        ai_confidence: topIssue?.confidence ?? 0
+        ai_extracted_issue: ret.ai_extracted_issue || primaryIssue?.issue || null,
+        ai_issue_label: primaryIssue?.label || 'Under Analysis',
+        ai_issue_icon: primaryIssue?.icon || '🔍',
+        ai_confidence: primaryIssue?.confidence ?? 0
       };
     });
 
@@ -778,27 +908,32 @@ router.get('/products/:id/recommendations', async (req, res) => {
 // ============================================================
 router.get('/dashboard/issue-distribution', async (req, res) => {
   try {
-    // Get all return notes
-    const [returns] = await db.query(`SELECT detailed_notes FROM returns`);
+    const [returns] = await db.query(`
+      SELECT return_reason, detailed_notes, ai_extracted_issue
+      FROM returns
+    `);
     
-    // Count each issue type
     const issueCounts = {};
     for (const ret of returns) {
-      const issues = extractIssues(ret.detailed_notes);
-      for (const issue of issues) {
-        if (!issueCounts[issue.issue]) {
-          issueCounts[issue.issue] = { label: issue.label, icon: issue.icon, count: 0 };
-        }
-        issueCounts[issue.issue].count++;
+      const primaryIssue = inferPrimaryIssue(ret);
+      if (!primaryIssue) continue;
+
+      if (!issueCounts[primaryIssue.issue]) {
+        issueCounts[primaryIssue.issue] = {
+          label: primaryIssue.label,
+          icon: primaryIssue.icon,
+          count: 0
+        };
       }
+      issueCounts[primaryIssue.issue].count++;
     }
 
-    // Convert to sorted array
+    const detectedTotal = Object.values(issueCounts).reduce((sum, item) => sum + item.count, 0);
     const distribution = Object.entries(issueCounts)
       .map(([key, value]) => ({
         issue: key,
         ...value,
-        percentage: Math.round((value.count / returns.length) * 100)
+        percentage: detectedTotal > 0 ? Math.round((value.count / detectedTotal) * 100) : 0
       }))
       .sort((a, b) => b.count - a.count);
 
@@ -833,25 +968,13 @@ router.get('/dashboard/action-summary', async (req, res) => {
 
     for (const category of categoryData) {
       const [returns] = await db.query(`
-        SELECT r.detailed_notes
+        SELECT r.return_reason, r.detailed_notes, r.ai_extracted_issue
         FROM returns r
         JOIN products p ON r.product_id = p.id
         WHERE p.category = ?
       `, [category.category]);
 
-      const issueCounts = {};
-      for (const ret of returns) {
-        const issues = extractIssues(ret.detailed_notes || '');
-        for (const issue of issues) {
-          if (!issueCounts[issue.label]) {
-            issueCounts[issue.label] = 0;
-          }
-          issueCounts[issue.label] += 1;
-        }
-      }
-
-      const sortedIssues = Object.entries(issueCounts).sort((a, b) => b[1] - a[1]);
-      const [topIssue = 'Under Analysis', topIssueCount = 0] = sortedIssues[0] || [];
+      const { topIssue, topIssueCount } = summarizeReturnIssues(returns);
 
       let priority = 'monitor';
       let impact = 'Low';
@@ -922,25 +1045,13 @@ router.get('/dashboard/alerts', async (req, res) => {
 
     for (const category of categoryData) {
       const [returns] = await db.query(`
-        SELECT r.detailed_notes
+        SELECT r.return_reason, r.detailed_notes, r.ai_extracted_issue
         FROM returns r
         JOIN products p ON r.product_id = p.id
         WHERE p.category = ?
       `, [category.category]);
 
-      const issueCounts = {};
-      for (const ret of returns) {
-        const issues = extractIssues(ret.detailed_notes || '');
-        for (const issue of issues) {
-          if (!issueCounts[issue.label]) {
-            issueCounts[issue.label] = 0;
-          }
-          issueCounts[issue.label] += 1;
-        }
-      }
-
-      const sortedIssues = Object.entries(issueCounts).sort((a, b) => b[1] - a[1]);
-      const [topIssue = 'Under Analysis'] = sortedIssues[0] || [];
+      const { topIssue } = summarizeReturnIssues(returns);
 
       let severity = 'medium';
       let priority = 'monitor';
