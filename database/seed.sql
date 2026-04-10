@@ -14,7 +14,7 @@
 USE supply_chain;
 
 -- ============================================================
--- PRODUCTS (20 products across different categories)
+-- PRODUCTS (26 products across different categories)
 -- We're simulating an electronics + fashion + home store
 -- ============================================================
 INSERT INTO products (id, name, category, subcategory, price, brand, description, avg_rating, total_reviews, total_sold, total_returned, return_rate) VALUES
@@ -101,7 +101,32 @@ INSERT INTO products (id, name, category, subcategory, price, brand, description
 
 (20, 'Hair Dryer Professional', 'Beauty', 'Hair Care', 2499.00, 'StylePro', 
  'Professional grade hair dryer with ionic technology and 3 heat settings.', 
- 3.9, 30, 400, 40, 10.00);
+ 3.9, 30, 400, 40, 10.00),
+
+-- ADDITIONAL PRODUCTS (21-26)
+(21, 'NoiseCancel Headphones X', 'Electronics', 'Audio', 6999.00, 'SoundWave',
+ 'Over-ear wireless headphones with hybrid noise cancellation and 30-hour battery life.',
+ 4.0, 24, 520, 62, 11.92),
+
+(22, 'Gaming Mouse RGB Pro', 'Electronics', 'Accessories', 1899.00, 'ByteCore',
+ 'Lightweight gaming mouse with programmable buttons, RGB lighting, and adjustable DPI.',
+ 4.4, 18, 680, 34, 5.00),
+
+(23, 'Oversized Hoodie Classic', 'Clothing', 'Outerwear', 1599.00, 'UrbanStyle',
+ 'Fleece-lined oversized hoodie designed for daily casual wear and winter layering.',
+ 3.5, 26, 740, 118, 15.95),
+
+(24, 'Ceramic Water Bottle 1L', 'Home & Kitchen', 'Drinkware', 899.00, 'HomeNest',
+ 'Insulated reusable water bottle with ceramic inner coating and leakproof cap.',
+ 4.2, 16, 560, 28, 5.00),
+
+(25, 'Matte Lipstick Kit', 'Beauty', 'Makeup', 1299.00, 'GlowNaturals',
+ 'Long-stay matte lipstick set with six shades for daily and occasion wear.',
+ 3.6, 20, 640, 77, 12.03),
+
+(26, 'Yoga Mat Comfort+', 'Sports', 'Fitness', 1499.00, 'FitGear',
+ 'Anti-slip yoga mat with extra cushioning for stretching, pilates, and home workouts.',
+ 4.1, 14, 430, 30, 6.98);
 
 -- ============================================================
 -- REVIEWS (200+ reviews)
@@ -233,7 +258,10 @@ INSERT INTO reviews (product_id, customer_name, rating, review_text, review_date
 (2, 'Sunil K.', 4, 'Good laptop for daily work. Fast boot time, nice keyboard. Screen could be brighter though.', '2025-12-10', TRUE, 18),
 (2, 'Preeti M.', 3, 'Heats up quite a bit under load. Fan noise is noticeable. For basic use it''s fine, not for heavy tasks.', '2025-12-20', TRUE, 25),
 (2, 'Ramesh T.', 5, 'Excellent value for money. Fast, lightweight, and battery lasts 6-7 hours. Very happy.', '2026-01-05', TRUE, 30),
-(2, 'Techie', 5, 'Best laptop! Amazing performance! Best screen! Best keyboard! Must buy! Nothing comes close!', '2026-01-10', FALSE, 0);
+(2, 'Techie', 5, 'Best laptop! Amazing performance! Best screen! Best keyboard! Must buy! Nothing comes close!', '2026-01-10', FALSE, 0),
+(2, 'Anjali V.', 2, 'Laptop gets very hot within 30 minutes and the fan noise becomes loud. Battery life is nowhere close to the hours claimed on the listing.', '2026-01-14', TRUE, 21),
+(2, 'Mohit R.', 2, 'The laptop freezes during video calls and the keyboard stopped working twice. Feels faulty for this price.', '2026-01-19', TRUE, 19),
+(2, 'Sana P.', 1, 'Received a defective laptop. It overheats, shuts down suddenly, and sometimes does not turn on without charging again.', '2026-01-24', TRUE, 27);
 
 -- Product 5: PowerBank
 INSERT INTO reviews (product_id, customer_name, rating, review_text, review_date, verified_purchase, helpful_votes) VALUES
@@ -401,6 +429,9 @@ INSERT INTO returns (product_id, customer_name, return_date, return_reason, deta
 -- A few returns for medium-return products
 INSERT INTO returns (product_id, customer_name, return_date, return_reason, detailed_notes, refund_amount, ai_extracted_issue) VALUES
 (2, 'Preeti M.', '2025-12-28', 'Not as expected', 'Overheats during regular tasks. Not powerful enough.', 54999.00, 'quality_poor'),
+(2, 'Anjali V.', '2026-01-17', 'Not as described', 'Battery life is far below the hours claimed. Laptop gets hot quickly and loud fan noise starts during normal work.', 54999.00, 'misleading_specs'),
+(2, 'Mohit R.', '2026-01-22', 'Defective product', 'Keyboard stopped working, laptop froze repeatedly, and the device feels faulty during normal office use.', 54999.00, 'defective'),
+(2, 'Sana P.', '2026-01-26', 'Defective product', 'Laptop overheats, shuts down suddenly, and sometimes wont turn on. Seems like a manufacturing defect.', 54999.00, 'defective'),
 (6, 'Savita K.', '2025-12-28', 'Product malfunction', 'WiFi drops, cant connect to smart devices. Very buggy.', 4499.00, 'connectivity_issue'),
 (6, 'Customer Y', '2026-01-15', 'Not as expected', 'Doesnt understand Indian accents. Smart features unreliable.', 4499.00, 'software_issue'),
 (15, 'Maya R.', '2025-12-30', 'Not comfortable', 'Too firm. Like sleeping on a brick. Not memory foam feel.', 1499.00, 'misleading_specs'),
@@ -422,6 +453,11 @@ INSERT INTO customer_support_tickets (product_id, customer_name, issue_type, mes
 (3, 'Anita R.', 'Defective', 'Strap broke and watch wont sync. I called 3 times — nobody helped properly.', 'Refund + apology', '2025-12-13', 'resolved'),
 (3, 'Deepak K.', 'Complaint', 'Sleep tracking shows I slept 3 hours when I slept 8. Completely useless fitness tracker.', 'Firmware update suggested', '2025-12-19', 'closed'),
 (3, 'Priyanka D.', 'Fraud Report', 'Heart rate sensor does NOT work. Your product specs are fabricated. This is fraud.', 'Full refund', '2026-01-09', 'resolved'),
+
+-- Product 2: UltraSlim Laptop
+(2, 'Anjali V.', 'Performance', 'Laptop gets very hot during Excel and browser use. Fan noise is loud and the battery life is much lower than advertised.', 'Refund approved', '2026-01-16', 'resolved'),
+(2, 'Mohit R.', 'Defective', 'Keyboard stopped working twice and the laptop froze during meetings. This unit feels faulty.', 'Replacement offered', '2026-01-21', 'resolved'),
+(2, 'Sana P.', 'Technical', 'Device overheats, shuts down on its own, and sometimes does not turn on. Please investigate this manufacturing defect.', 'Full refund', '2026-01-25', 'resolved'),
 
 -- Product 7: T-Shirt color issues
 (7, 'Rajesh K.', 'Color Issue', 'Color of t-shirt is completely different from the photo. This is false advertising.', 'Return accepted', '2025-12-03', 'resolved'),
@@ -445,3 +481,94 @@ INSERT INTO customer_support_tickets (product_id, customer_name, issue_type, mes
 -- Product 19: Serum
 (19, 'Aarti S.', 'Health Concern', 'Your serum caused painful breakouts on my face. Claim of "all skin types" is dangerous and false.', 'Refund + medical costs', '2025-12-06', 'resolved'),
 (19, 'Poornima K.', 'Expired Product', 'Product arrived oxidized (dark orange). This serum is old/expired. Selling expired products is illegal.', 'Full refund', '2025-12-16', 'resolved');
+
+-- ============================================================
+-- DATA EXPANSION FOR STRONGER DASHBOARD METRICS
+-- Adds more realistic activity so charts and KPIs look richer
+-- ============================================================
+
+UPDATE products
+SET total_sold = total_sold + 1200,
+    total_returned = total_returned + 144,
+    total_reviews = total_reviews + 12,
+    avg_rating = 3.80,
+    return_rate = ROUND(((total_returned + 144) / (total_sold + 1200)) * 100, 2)
+WHERE id = 2;
+
+UPDATE products
+SET total_sold = total_sold + 600,
+    total_returned = total_returned + 96,
+    total_reviews = total_reviews + 14,
+    avg_rating = 2.70,
+    return_rate = ROUND(((total_returned + 96) / (total_sold + 600)) * 100, 2)
+WHERE id = 3;
+
+UPDATE products
+SET total_sold = total_sold + 900,
+    total_returned = total_returned + 198,
+    total_reviews = total_reviews + 16,
+    avg_rating = 2.90,
+    return_rate = ROUND(((total_returned + 198) / (total_sold + 900)) * 100, 2)
+WHERE id = 7;
+
+UPDATE products
+SET total_sold = total_sold + 700,
+    total_returned = total_returned + 210,
+    total_reviews = total_reviews + 16,
+    avg_rating = 2.70,
+    return_rate = ROUND(((total_returned + 210) / (total_sold + 700)) * 100, 2)
+WHERE id = 8;
+
+UPDATE products
+SET total_sold = total_sold + 450,
+    total_returned = total_returned + 170,
+    total_reviews = total_reviews + 14,
+    avg_rating = 2.60,
+    return_rate = ROUND(((total_returned + 170) / (total_sold + 450)) * 100, 2)
+WHERE id = 12;
+
+UPDATE products
+SET total_sold = total_sold + 200,
+    total_returned = total_returned + 80,
+    total_reviews = total_reviews + 12,
+    avg_rating = 2.50,
+    return_rate = ROUND(((total_returned + 80) / (total_sold + 200)) * 100, 2)
+WHERE id = 17;
+
+UPDATE products
+SET total_sold = total_sold + 500,
+    total_returned = total_returned + 110,
+    total_reviews = total_reviews + 12,
+    avg_rating = 3.20,
+    return_rate = ROUND(((total_returned + 110) / (total_sold + 500)) * 100, 2)
+WHERE id = 19;
+
+INSERT INTO reviews (product_id, customer_name, rating, review_text, review_date, verified_purchase, helpful_votes) VALUES
+(2, 'Harsh K.', 2, 'Battery drains too quickly and the laptop gets hot during simple browser work. Fan noise becomes distracting.', '2026-02-02', TRUE, 14),
+(2, 'Laptop Guru', 5, 'Best laptop ever! Amazing battery! Amazing speed! Must buy immediately! Perfect for everyone!', '2026-02-03', FALSE, 0),
+(7, 'Meena D.', 1, 'Color is nothing like the photo and the fabric feels cheap. It also shrank badly after one wash.', '2026-02-04', TRUE, 24),
+(7, 'Tee Lover', 5, 'Perfect t-shirt! Amazing color! Amazing fit! Must buy for the whole family! Best quality!', '2026-02-05', FALSE, 0),
+(8, 'Harpreet S.', 1, 'Size chart is useless. Waist is too tight, length is too short, and the denim feels rough.', '2026-02-06', TRUE, 31),
+(8, 'Denim Star', 5, 'Best jeans ever! Perfect fit! Amazing quality! Buy now buy now buy now!', '2026-02-07', FALSE, 0),
+(12, 'Shobha N.', 1, 'This saree is not pure silk. The color is wrong, zari work is dull, and fabric feels synthetic.', '2026-02-08', TRUE, 29),
+(12, 'Wedding Queen', 5, 'Amazing saree! Best silk! Best design! Every bride should buy this! Highly recommended!', '2026-02-09', FALSE, 1),
+(17, 'Renu T.', 1, 'Robot keeps hitting walls, gets stuck under sofa, and the app crashes. Cleaning quality is very poor.', '2026-02-10', TRUE, 26),
+(17, 'Home Tech Fan', 5, 'Best vacuum ever! Amazing cleaning! Perfect mapping! Must buy now!', '2026-02-11', FALSE, 0),
+(19, 'Sonal R.', 2, 'Caused irritation and redness. Bottle also looked partly oxidized on arrival.', '2026-02-12', TRUE, 23),
+(19, 'Glow Lover', 5, 'Miracle serum! Best glow ever! Must buy! Amazing amazing amazing results!', '2026-02-13', FALSE, 0);
+
+INSERT INTO returns (product_id, customer_name, return_date, return_reason, detailed_notes, refund_amount, ai_extracted_issue) VALUES
+(2, 'Harsh K.', '2026-02-05', 'Not as expected', 'Battery life much lower than advertised and the laptop gets hot with loud fan noise during normal work.', 54999.00, 'misleading_specs'),
+(7, 'Meena D.', '2026-02-06', 'Color mismatch', 'Color is different from the photo and fabric shrank after one wash. Looks cheap in person.', 799.00, 'color_mismatch'),
+(8, 'Harpreet S.', '2026-02-08', 'Wrong size', 'Waist too tight, length too short, and the fit is nothing like the size chart.', 1899.00, 'size_mismatch'),
+(12, 'Shobha N.', '2026-02-10', 'Fake product', 'Not real silk. Fabric feels synthetic and the zari quality is poor.', 5499.00, 'material_quality'),
+(17, 'Renu T.', '2026-02-12', 'Product malfunction', 'Robot gets stuck, app crashes, and mapping does not work properly.', 12999.00, 'software_issue'),
+(19, 'Sonal R.', '2026-02-14', 'Adverse reaction', 'Serum caused irritation and redness and looked oxidized on opening.', 699.00, 'safety_concern');
+
+INSERT INTO customer_support_tickets (product_id, customer_name, issue_type, message, resolution, ticket_date, status) VALUES
+(2, 'Harsh K.', 'Performance', 'Battery backup is far below claim and the laptop overheats during browser and spreadsheet use.', 'Refund approved', '2026-02-04', 'resolved'),
+(7, 'Meena D.', 'Color Issue', 'Actual t-shirt color is different from the listing photo and the material quality is poor.', 'Refund processed', '2026-02-05', 'resolved'),
+(8, 'Harpreet S.', 'Size Issue', 'Jeans size chart is incorrect. Waist and length both feel much smaller than ordered.', 'Return accepted', '2026-02-07', 'resolved'),
+(12, 'Shobha N.', 'Fraud Report', 'This saree is being sold as pure silk but the material feels synthetic and low quality.', 'Full refund', '2026-02-09', 'resolved'),
+(17, 'Renu T.', 'Technical', 'Robot vacuum app crashes and the device keeps getting stuck under furniture.', 'Refund approved', '2026-02-11', 'resolved'),
+(19, 'Sonal R.', 'Health Concern', 'Serum caused redness and skin irritation after first use. Product may not be safe for sensitive skin.', 'Refund issued', '2026-02-13', 'resolved');

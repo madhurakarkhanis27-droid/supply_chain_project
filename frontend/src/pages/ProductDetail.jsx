@@ -26,8 +26,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   ArrowLeft, Package, Star, RotateCcw, AlertTriangle,
-  Shield, CheckCircle, XCircle, TrendingDown, MessageSquare,
-  ThumbsUp, Award, ArrowRight
+  Shield, CheckCircle, TrendingDown, MessageSquare,
+  Award, ArrowRight
 } from 'lucide-react';
 
 // Our components
@@ -45,23 +45,31 @@ function ProductDetail() {
   const [recommendations, setRecommendations] = useState(null);  // Alternative products
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); // Current tab
+  const [error, setError] = useState(null);
 
   // ---- FETCH DATA ----
   useEffect(() => {
     async function fetchProductData() {
       try {
         setLoading(true);
+        setError(null);
 
-        // Fetch product details + AI analysis AND recommendations in parallel
-        const [detailRes, recsRes] = await Promise.all([
-          axios.get(`/api/products/${id}`),
-          axios.get(`/api/products/${id}/recommendations`),
-        ]);
-
+        // Product detail is required; recommendations are optional.
+        const detailRes = await axios.get(`/api/products/${id}`);
         setData(detailRes.data);
-        setRecommendations(recsRes.data);
+
+        try {
+          const recsRes = await axios.get(`/api/products/${id}/recommendations`);
+          setRecommendations(recsRes.data);
+        } catch (recsError) {
+          console.error('Failed to load recommendations:', recsError);
+          setRecommendations({ recommendations: [] });
+        }
       } catch (err) {
         console.error('Failed to load product:', err);
+        setData(null);
+        setRecommendations(null);
+        setError('We could not load this product analysis. Please check the backend and try again.');
       } finally {
         setLoading(false);
       }
@@ -73,6 +81,18 @@ function ProductDetail() {
 
   // ---- LOADING ----
   if (loading) return <LoadingSpinner message="Running AI analysis..." />;
+  if (error) {
+    return (
+      <div className="empty-state">
+        <div className="empty-icon">!</div>
+        <h3>Product analysis unavailable</h3>
+        <p>{error}</p>
+        <button className="back-btn" onClick={() => navigate('/products')}>
+          <ArrowLeft size={16} /> Back to Products
+        </button>
+      </div>
+    );
+  }
   if (!data) {
     return (
       <div className="empty-state">
@@ -88,6 +108,7 @@ function ProductDetail() {
   // Destructure the data for easier access
   const { product, reviews, returns, tickets, aiAnalysis } = data;
   const { riskScore, rootCause } = aiAnalysis;
+  const riskValue = riskScore?.score || 0;
 
 
   // ---- HELPERS ----
@@ -184,7 +205,7 @@ function ProductDetail() {
                 AI Risk Assessment
               </h3>
               <RiskGauge 
-                score={riskScore?.overall || 0}
+                score={riskValue}
                 label="Overall Return Risk"
                 details={riskScore?.factors || null}
               />
@@ -302,9 +323,17 @@ function ProductDetail() {
                 </div>
               ))
             ) : (
-              <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '20px' }}>
-                Insufficient data for root cause analysis.
-              </p>
+              <div style={{
+                padding: '18px',
+                background: 'var(--bg-elevated)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.85rem',
+                lineHeight: '1.7',
+              }}>
+                {rootCause?.summary || 'No recurring issue pattern has been detected yet for this product.'}
+              </div>
             )}
 
             {/* AI Summary */}

@@ -45,6 +45,23 @@ npm install
 npm run dev
 ```
 
+Optional backend environment setup:
+```bash
+copy .env.example .env
+```
+
+Set these values in `backend/.env` or in your shell before starting:
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME`
+- `PORT`
+
 ### Database
 1. Import `database/schema.sql` into your MySQL server
 2. Optionally run `database/seed.sql` for sample data
+
+### Health Checks
+- API: `http://localhost:5000/api/health`
+- Database: `http://localhost:5000/api/health/db`

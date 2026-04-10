@@ -130,7 +130,7 @@ const ISSUE_KEYWORDS = {
  * @param {string} text - The text to analyze
  * @returns {Array} - List of detected issues with scores
  */
-function extractIssues(text) {
+function extractIssuesWithThreshold(text, minMatches = 2) {
   // If no text provided, return empty
   if (!text) return [];
 
@@ -151,8 +151,8 @@ function extractIssues(text) {
       }
     }
 
-    // If at least 2 keywords matched, consider this issue detected
-    if (matchCount >= 2) {
+    // If enough keywords matched, consider this issue detected
+    if (matchCount >= minMatches) {
       // Calculate confidence score (0 to 1)
       // More keyword matches = higher confidence
       const confidence = Math.min(
@@ -175,6 +175,63 @@ function extractIssues(text) {
   results.sort((a, b) => b.confidence - a.confidence);
 
   return results;
+}
+
+function extractIssues(text) {
+  return extractIssuesWithThreshold(text, 2);
+}
+
+function getIssueMetadata(issueKey) {
+  const issueData = ISSUE_KEYWORDS[issueKey];
+  if (!issueData) return null;
+
+  return {
+    issue: issueKey,
+    label: issueData.label,
+    icon: issueData.icon,
+  };
+}
+
+function addIssueCount(issueCounts, issue, source) {
+  if (!issue || !issue.issue) return;
+
+  if (!issueCounts[issue.issue]) {
+    issueCounts[issue.issue] = {
+      count: 0,
+      label: issue.label,
+      icon: issue.icon,
+      sources: [],
+    };
+  }
+
+  issueCounts[issue.issue].count++;
+  issueCounts[issue.issue].sources.push(source);
+}
+
+function getFallbackIssuesFromReturn(ret) {
+  const fallbackIssues = [];
+
+  const aiIssue = getIssueMetadata(ret.ai_extracted_issue);
+  if (aiIssue) {
+    fallbackIssues.push(aiIssue);
+  }
+
+  if (fallbackIssues.length === 0) {
+    const relaxed = extractIssuesWithThreshold(`${ret.return_reason || ''} ${ret.detailed_notes || ''}`, 1);
+    if (relaxed.length > 0) fallbackIssues.push(relaxed[0]);
+  }
+
+  return fallbackIssues;
+}
+
+function getFallbackIssuesFromReview(review) {
+  const relaxed = extractIssuesWithThreshold(review.review_text, 1);
+  return relaxed.length > 0 ? [relaxed[0]] : [];
+}
+
+function getFallbackIssuesFromTicket(ticket) {
+  const relaxed = extractIssuesWithThreshold(`${ticket.issue_type || ''} ${ticket.message || ''}`, 1);
+  return relaxed.length > 0 ? [relaxed[0]] : [];
 }
 
 
@@ -609,13 +666,12 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
   if (returns) {
     for (const ret of returns) {
       allTexts.push(ret.detailed_notes);
-      const issues = extractIssues(ret.detailed_notes);
+      let issues = extractIssues(ret.detailed_notes);
+      if (issues.length === 0) {
+        issues = getFallbackIssuesFromReturn(ret);
+      }
       for (const issue of issues) {
-        if (!issueCounts[issue.issue]) {
-          issueCounts[issue.issue] = { count: 0, label: issue.label, icon: issue.icon, sources: [] };
-        }
-        issueCounts[issue.issue].count++;
-        issueCounts[issue.issue].sources.push('return');
+        addIssueCount(issueCounts, issue, 'return');
       }
     }
   }
@@ -625,13 +681,12 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
     const negativeReviews = reviews.filter(r => r.rating <= 3);
     for (const rev of negativeReviews) {
       allTexts.push(rev.review_text);
-      const issues = extractIssues(rev.review_text);
+      let issues = extractIssues(rev.review_text);
+      if (issues.length === 0 && rev.rating <= 2) {
+        issues = getFallbackIssuesFromReview(rev);
+      }
       for (const issue of issues) {
-        if (!issueCounts[issue.issue]) {
-          issueCounts[issue.issue] = { count: 0, label: issue.label, icon: issue.icon, sources: [] };
-        }
-        issueCounts[issue.issue].count++;
-        issueCounts[issue.issue].sources.push('review');
+        addIssueCount(issueCounts, issue, 'review');
       }
     }
   }
@@ -640,13 +695,12 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
   if (tickets) {
     for (const ticket of tickets) {
       allTexts.push(ticket.message);
-      const issues = extractIssues(ticket.message);
+      let issues = extractIssues(ticket.message);
+      if (issues.length === 0) {
+        issues = getFallbackIssuesFromTicket(ticket);
+      }
       for (const issue of issues) {
-        if (!issueCounts[issue.issue]) {
-          issueCounts[issue.issue] = { count: 0, label: issue.label, icon: issue.icon, sources: [] };
-        }
-        issueCounts[issue.issue].count++;
-        issueCounts[issue.issue].sources.push('support');
+        addIssueCount(issueCounts, issue, 'support');
       }
     }
   }
@@ -668,12 +722,14 @@ function generateRootCauseAnalysis(product, reviews, returns, tickets) {
   let summary = '';
   if (issueBreakdown.length > 0) {
     const topIssue = issueBreakdown[0];
-    summary = `Most returns for "${product.name}" are caused by ${topIssue.label.toLowerCase()} (${topIssue.percentage}% of all reported issues).`;
+    summary = `Most returns for ${product.name} are caused by ${topIssue.label.toLowerCase()} (${topIssue.percentage}% of all reported issues).`;
     if (issueBreakdown.length > 1) {
       summary += ` This is followed by ${issueBreakdown[1].label.toLowerCase()} (${issueBreakdown[1].percentage}%).`;
     }
   } else {
-    summary = `Insufficient data to determine root causes for "${product.name}".`;
+    summary = allTexts.length > 0
+      ? `No strong recurring root-cause pattern has been detected yet for ${product.name}. Available feedback does not show a consistent issue cluster.`
+      : `No return, review, or support issue data is available yet for ${product.name}.`;
   }
 
   // Generate actionable recommendations

@@ -27,6 +27,17 @@ function getRiskLevel(score) {
 
 function RiskGauge({ score = 0, label = 'Risk Score', details }) {
   const risk = getRiskLevel(score);
+  const normalizedDetails = Array.isArray(details)
+    ? details.map((item, index) => ({
+        key: `${item.name || 'factor'}-${index}`,
+        label: item.name || `Factor ${index + 1}`,
+        value: item.contribution ?? item.value ?? 0,
+      }))
+    : Object.entries(details || {}).map(([key, value]) => ({
+        key,
+        label: key.replace(/([A-Z])/g, ' $1').trim(),
+        value,
+      }));
 
   // SVG gauge math:
   // We draw a semi-circle (180 degrees) using an SVG arc
@@ -121,7 +132,7 @@ function RiskGauge({ score = 0, label = 'Risk Score', details }) {
       </div>
 
       {/* --- Breakdown Factors (optional) --- */}
-      {details && (
+      {normalizedDetails.length > 0 && (
         <div style={{
           marginTop: '16px',
           width: '100%',
@@ -129,7 +140,7 @@ function RiskGauge({ score = 0, label = 'Risk Score', details }) {
           flexDirection: 'column',
           gap: '8px',
         }}>
-          {Object.entries(details).map(([key, value]) => (
+          {normalizedDetails.map(({ key, label, value }) => (
             <div key={key} style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -140,7 +151,7 @@ function RiskGauge({ score = 0, label = 'Risk Score', details }) {
               borderRadius: '6px',
             }}>
               <span style={{ color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-                {key.replace(/([A-Z])/g, ' $1').trim()}
+                {label}
               </span>
               <span style={{ 
                 fontWeight: '600', 
