@@ -362,10 +362,10 @@ function ProductDetail() {
                 Better Alternatives
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
-                Products in the same category with lower return rates:
+                We first look for very similar products from the same subcategory, then use safer options from the same category only.
               </p>
 
-              {recommendations.recommendations.map((rec, idx) => (
+              {recommendations.recommendations.map((rec) => (
                 <div 
                   key={rec.id} 
                   className="recommendation-card"
@@ -374,16 +374,30 @@ function ProductDetail() {
                 >
                   <div className="improvement">
                     <div className="value">
-                      ↓{Number(rec.returnRateImprovement).toFixed(0)}%
+                      -{Number(rec.returnRateImprovement).toFixed(0)}%
                     </div>
                     <div className="label">Lower returns</div>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{rec.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-                      {rec.brand} • ₹{Number(rec.price).toLocaleString('en-IN')} • 
-                      ★ {rec.avg_rating} • {rec.return_rate}% return rate
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{rec.name}</div>
+                      <span className={`recommendation-badge ${rec.sameSubcategory ? 'closest' : 'category'}`}>
+                        {rec.similarityLabel}
+                      </span>
                     </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                      {rec.brand} | {rec.subcategory} | Rs {Number(rec.price).toLocaleString('en-IN')} | 
+                      Rating {rec.avg_rating} | {rec.return_rate}% return rate
+                    </div>
+                    {rec.comparisonPoints?.length > 0 && (
+                      <div className="recommendation-comparison">
+                        {rec.comparisonPoints.map((point) => (
+                          <span key={`${rec.id}-${point}`} className="comparison-chip">
+                            {point}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <ArrowRight size={16} style={{ color: 'var(--text-tertiary)' }} />
                 </div>
@@ -587,3 +601,6 @@ function ProductDetail() {
 }
 
 export default ProductDetail;
+
+
+
