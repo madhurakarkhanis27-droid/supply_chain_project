@@ -79,7 +79,7 @@ function ProductsList() {
     async function fetchProducts() {
       try {
         setLoading(true);
-        const response = await axios.get('/api/products');
+        const response = await axios.get(`/api/products?t=${Date.now()}`);
         setProducts(response.data);
       } catch (err) {
         console.error('Failed to load products:', err);

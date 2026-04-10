@@ -807,7 +807,7 @@ function ProductDetail() {
                     </td>
                     <td>
                       <span className="badge badge-info">
-                        {ret.ai_extracted_issue?.replace(/_/g, ' ') || 'Analyzing...'}
+                        {ret.ai_issue_label || ret.ai_extracted_issue?.replace(/_/g, ' ') || 'Analyzing...'}
                       </span>
                     </td>
                     <td style={{ fontWeight: '600', color: 'var(--color-danger)' }}>
