@@ -2,6 +2,14 @@
 
 A full-stack supply chain management application.
 
+## Product Seed Source Of Truth
+
+The repository-owned product catalog lives in `backend/products.json`.
+
+- It contains exactly `267` products.
+- `backend/seed_products.js` is the only supported product import path.
+- `backend/add_products.js` now forwards to that same canonical seed so older local habits do not create a second dataset.
+
 ## Project Structure
 
 ```
@@ -20,6 +28,8 @@ project-root/
 │   ├── server.js
 │   ├── db.js
 │   ├── routes.js
+│   ├── products.json
+│   ├── seed_products.js
 │   ├── package.json
 │
 ├── database/          # SQL scripts
@@ -30,6 +40,58 @@ project-root/
 ```
 
 ## Getting Started
+
+### Fresh Clone Database Setup
+
+Run these steps in order on an empty MySQL database.
+
+1. Install backend dependencies:
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+2. Set the database credentials in `backend/.env`.
+
+Required values:
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME` (`supply_chain` to match the SQL scripts)
+- `PORT`
+
+3. Create the schema:
+
+```bash
+mysql -h <host> -P <port> -u <user> -p < ../database/schema.sql
+```
+
+4. Seed the canonical 267-product catalog:
+
+```bash
+npm run seed:products
+```
+
+5. Seed the remaining sample users, reviews, returns, and tickets:
+
+```bash
+mysql -h <host> -P <port> -u <user> -p < ../database/seed.sql
+```
+
+6. Verify the product count:
+
+```sql
+SELECT COUNT(*) FROM products;
+```
+
+Expected result:
+
+```text
+267
+```
 
 ### Frontend
 ```bash
@@ -45,24 +107,7 @@ npm install
 npm run dev
 ```
 
-Optional backend environment setup:
-```bash
-cp .env.example .env
-```
-
-Set these values in `backend/.env` or in your shell before starting:
-- `DB_HOST`
-- `DB_PORT`
-- `DB_USER`
-- `DB_PASSWORD`
-- `DB_NAME`
-- `PORT`
-
 The frontend dev server reads the backend port from `backend/.env` and proxies `/api` requests to that target automatically. If you change `PORT`, restart both the backend and frontend dev servers.
-
-### Database
-1. Import `database/schema.sql` into your MySQL server
-2. Optionally run `database/seed.sql` for sample data
 
 ### Health Checks
 - API: `http://localhost:<PORT>/api/health`
